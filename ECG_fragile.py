@@ -17,7 +17,7 @@ ecg_signal = 1.2 * np.sin(2 * np.pi * 1 * x_values) + \
 
 SHA256_OUTPUT_LEN = 256
 HEX_BASE          = 16
-ECG_SCALE_FACTOR  = 1000
+ECG_SCALE_FACTOR  = 1000 #inversely proportional to watermark strength
 
 def convert_ecg_signal_to_binary(ecg_signal: np.array) -> str:
     """Converts ECG signal > bite array > SHA256 hash > binary watermark
@@ -68,7 +68,10 @@ watermark_bin   = convert_ecg_signal_to_binary(ecg_signal)
 watermarked_ecg = embed_watermark_in_ecg(ecg_signal, watermark_bin)
 watermarked_ecg2= embed_watermark_my_way(ecg_signal, watermark_bin)
 
-print(np.mean(np.abs(watermarked_ecg - ecg_signal)/ecg_signal) * 100)
-print(np.mean(np.abs(watermarked_ecg2 - ecg_signal)/ecg_signal) * 100)
+# print(np.mean(np.abs(watermarked_ecg - ecg_signal)/ecg_signal) * 100)
+# print(np.mean(np.abs(watermarked_ecg2 - ecg_signal)/ecg_signal) * 100)
 
+# TODO: split ECG signal based on heartbeat (doesnt have to be exact,
+# as long as each beat constitutes a segment)
+# TODO: place each watermark at a random location of a predefined window w in each ECG subsequence
 
