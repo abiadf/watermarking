@@ -1,3 +1,5 @@
+"""This module implements the robust watermark from the ECG paper"""
+
 import math
 import numpy as np
 import matplotlib.pyplot as plt
