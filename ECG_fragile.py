@@ -1,4 +1,5 @@
-"""This module implements the fragile watermark from the ECG paper"""
+"""This module implements the fragile watermark from the ECG paper.
+The input signal of the fragile watermark is the signal + robust watermark (from paper)"""
 
 from typing import List, Union
 
@@ -7,6 +8,7 @@ import scipy.signal
 from scipy.signal import butter, filtfilt
 import matplotlib.pyplot as plt
 
+import ECG_robust as robust
 import parameters as param
 
 def shift_signal_up_to_remove_negative_values(ecg_signal):
@@ -181,11 +183,10 @@ def _scale_all_seeds(all_seeds_int: np.ndarray) -> np.ndarray:
     - all_seeds_int (np.ndarray): array of seeds to be scaled
     - np.ndarray: array of scaled seeds"""	
 
-    PYTHON_SEED_LIMIT = 2**32 - 1
-    max_seed          = np.max(all_seeds_int)
+    max_seed = np.max(all_seeds_int)
 
-    if max_seed > PYTHON_SEED_LIMIT:
-        scale_factor  = max_seed / PYTHON_SEED_LIMIT  # Compute relative scaling factor
+    if max_seed > param.PYTHON_SEED_LIMIT:
+        scale_factor  = max_seed / param.PYTHON_SEED_LIMIT  # Compute relative scaling factor
         all_seeds_int = all_seeds_int / scale_factor  # Scale seed down proportionally
         print(f"Max seed exceeds Python limits, will downscale all seeds")
     all_seeds_int = np.floor(all_seeds_int)#.astype(int)
@@ -236,8 +237,20 @@ def unshift_signal_back_to_original(ecg_signal, min_value):
         unshifted_ecg_signal = ecg_signal + min_value
     return unshifted_ecg_signal
 
+def plot_fragile_results(should_we_plot):
+    """Plots the results of the fragile watermarking"""
+    if should_we_plot: 
+        plt.figure(figsize=(13,6))
+        plt.plot(robust.ecg_signal, label="Original ECG")
+        plt.plot(unshifted_ecg_signal, label="ECG+fragile WM")
+        plt.title("ECG Signal")
+        plt.xlabel("Time")
+        plt.ylabel("Signal")
+        plt.legend()
+        plt.show()
 
-shifted_ecg_signal, min_value  = shift_signal_up_to_remove_negative_values(param.ecg_signal)
+
+shifted_ecg_signal, min_value  = shift_signal_up_to_remove_negative_values(robust.ecg_signal)
 scaled_signal                  = scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
 scaled_signal_no_lsb           = remove_lsb_from_each_element_in_signal(scaled_signal)
 segments_list, num_segments_in_signal= split_signal_to_heartbeat_segments(scaled_signal_no_lsb)
@@ -250,16 +263,6 @@ watermarked_signal             = embed_watermark_into_ecg(scaled_signal_no_lsb, 
 watermarked_ecg_signal_unscaled= unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
 unshifted_ecg_signal           = unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
-print(np.mean(np.abs(param.ecg_signal - unshifted_ecg_signal)/param.ecg_signal) * 100)
-
-
-plt.figure(figsize=(13,6))
-plt.plot(param.ecg_signal, label="Original ECG")
-plt.plot(unshifted_ecg_signal, label="ECG+fragile WM")
-plt.title("ECG Signal")
-plt.xlabel("Time")
-plt.ylabel("Signal")
-plt.legend()
-plt.show()
-
-# TODO: make input of fragile watermark be the robust watermarked signal
+fragile_mae = robust.get_mae(robust.ecg_signal, unshifted_ecg_signal)
+print(f"Fragile MAE: {fragile_mae}")
+plot_fragile_results(1)
