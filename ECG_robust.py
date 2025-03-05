@@ -90,7 +90,6 @@ def split_signal_to_subsequences(ecg_signal, subsequence_length: int) -> list:
  
 watermark        = turn_watermark_to_nonbinary_sequence(ssn_with_hamming)
 ecg_subsequences = split_signal_to_subsequences(ecg_signal, subsequence_length)
-print(f"ECG signal shape: {ecg_signal.shape}")
 
 
 def get_fourier_terms(ecg_subseq: np.array) -> tuple:
@@ -121,12 +120,12 @@ for ecg_subseq in ecg_subsequences:
     modified_fft_series = modified_magnitude * np.exp(1j * phase_angles)
     watermarked_subseq  = np.fft.ifft(modified_fft_series).real # keep real part
     watermarked_subsequences.append(watermarked_subseq)
-    print(f"Subseq: {get_mae(ecg_subseq, watermarked_subseq)} %")
+    # print(f"Subseq: {get_mae(ecg_subseq, watermarked_subseq)} %")
  
 watermarked_ecg_signal = np.concatenate(watermarked_subsequences)
 mae  = get_mae(ecg_signal, watermarked_ecg_signal)
 mape = np.mean(np.abs((ecg_signal - watermarked_ecg_signal)/ecg_signal)) * 100
-print(f"MAE {mae}, MAPE {mape}")
+# print(f"Robust: MAE {mae}, MAPE {mape}")
  
 ecg_fft    = np.fft.fft(ecg_signal)
 freqs      = np.fft.fftfreq(n_timesteps, d=1/param.fs)
@@ -156,4 +155,5 @@ def plot_robust_results(should_we_plot):
         plt.ylabel("Magnitude")
         plt.show()
 
-plot_robust_results(1)
+should_we_plot = 0
+plot_robust_results(should_we_plot)

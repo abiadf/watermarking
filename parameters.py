@@ -41,3 +41,4 @@ NUM_HASH_VALUES_PER_WINDOW = 3 # set to 3 (low, band, high) from paper
 BIT_LENGTH        = 8
 SEED_K            = 2 # to randomly generate interval start points
 PYTHON_SEED_LIMIT = 2**32 - 1 # highest value np.seed can handle
+BUTTER_ORDER      = 4 # Butterfield filter order, 4 is recommended

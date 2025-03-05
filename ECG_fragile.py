@@ -99,7 +99,7 @@ def _compute_signal_power_of_1_window(signal: np.ndarray) -> float:
     - output (float): input signal's computed power"""
     return np.mean(signal ** 2)
 
-def _compute_hash_values_of_1_window(ecg_window: np.ndarray, fs: float) -> List[float]:
+def _compute_power_hash_values_of_1_window(ecg_window: np.ndarray, fs: float) -> List[float]:
     """Computes 3 hash values for a given ECG window; for each of low+band+high freq filters
     - ecg_window (np.ndarray): The interval of ECG signal
     - fs (float): Sampling frequency in Hz
@@ -109,12 +109,11 @@ def _compute_hash_values_of_1_window(ecg_window: np.ndarray, fs: float) -> List[
     low_cutoff  = fs / 6
     high_cutoff = fs / 3
     band_cutoff = [low_cutoff, high_cutoff]
-    ORDER = 4 # recommended value
 
     # Apply filters
-    low_pass_signal  = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=low_cutoff, order=ORDER, filter_type='low')
-    band_pass_signal = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=band_cutoff, order=ORDER, filter_type='band')
-    high_pass_signal = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=high_cutoff, order=ORDER, filter_type='high')
+    low_pass_signal  = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=low_cutoff, order=param.BUTTER_ORDER, filter_type='low')
+    band_pass_signal = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=band_cutoff, order=param.BUTTER_ORDER, filter_type='band')
+    high_pass_signal = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=high_cutoff, order=param.BUTTER_ORDER, filter_type='high')
 
     # Compute power values
     power_low  = _compute_signal_power_of_1_window(low_pass_signal)
@@ -139,7 +138,7 @@ def compute_segment_hashes(ecg_signal_no_lsb, window_indices_for_all_segments: l
 
     for i, segment in enumerate(window_indices_for_all_segments):
         for j, window in enumerate(segment):
-            hash_values = _compute_hash_values_of_1_window(ecg_signal_no_lsb[window], param.fs)
+            hash_values = _compute_power_hash_values_of_1_window(ecg_signal_no_lsb[window], param.fs)
             ecg_hash_matrix[i, j, :] = hash_values
 
     segment_hashes = ecg_hash_matrix.reshape(num_segments_in_signal, -1)
@@ -150,6 +149,9 @@ def _quantize_hash_values_for_1_segment(segment_hashes: np.ndarray, bit_length: 
     - hash_values (np.ndarray): hash values for 1 segment
     - bit_length (int): # of bits for each quantized value (default 8-bit)
     - str: concatenated binary string"""
+
+    if type(segment_hashes) != np.ndarray:
+        segment_hashes = np.array(segment_hashes)  # Convert list to NumPy array
 
     scaled_values = (segment_hashes * (2**bit_length - 1)).astype(int)  # Scale to [0, 255] for 8-bit
     binary_strings = [format(val, f'0{bit_length}b') for val in scaled_values]  # Convert to binary
@@ -223,6 +225,28 @@ def embed_watermark_into_ecg(ecg_signal: list, ecg_segments: list, watermarks_fo
             watermarked_ecg[idx] = (watermarked_ecg[idx] & ~1) | watermark[j]  # Set LSB with the watermark bit
     return watermarked_ecg
 
+def embed_watermark_into_ecg_segmented(ecg_signal: np.ndarray, ecg_segments: list, watermarks_for_all_segments: list) -> list:
+    """Embeds watermarks into ECG segments and returns a segmented output.
+    We keep the output segmented (instead of concatenated) as it will be used in the detection
+    - ecg_segments (list): list of ECG segments (each a list/array of indices)
+    - watermarks_for_all_segments (list): list of watermarks for each segment
+    - returns: list of watermarked ECG segments"""
+
+    watermarked_segments = []
+    for segment_indices, watermark_segment in zip(ecg_segments, watermarks_for_all_segments):
+        watermarked_segment = ecg_signal[segment_indices].copy()  # Get actual signal values
+        for j in range(len(segment_indices)):
+            watermarked_segment[j] = (watermarked_segment[j] & ~1) | watermark_segment[j] # Set LSB with the watermark bit
+        watermarked_segments.append(watermarked_segment)
+
+    return watermarked_segments
+
+def concat_watermarked_segments(watermarked_segments: list) -> np.ndarray:
+    """Concatenates the watermarked segments into a single array
+    - watermarked_segments (list): list of watermarked ECG segments
+    - np.ndarray: concatenated array of watermarked ECG segments"""
+    return np.concatenate(watermarked_segments)
+
 def unscale_signal(scaled_signal_no_lsb, scale_factor):
     """Function that unscaled the modified signal"""
     ecg_signal_no_lsb = scaled_signal_no_lsb / scale_factor
@@ -250,19 +274,23 @@ def plot_fragile_results(should_we_plot):
         plt.show()
 
 
-shifted_ecg_signal, min_value  = shift_signal_up_to_remove_negative_values(robust.ecg_signal)
-scaled_signal                  = scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
-scaled_signal_no_lsb           = remove_lsb_from_each_element_in_signal(scaled_signal)
+shifted_ecg_signal, min_value   = shift_signal_up_to_remove_negative_values(robust.ecg_signal)
+scaled_signal                   = scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
+scaled_signal_no_lsb            = remove_lsb_from_each_element_in_signal(scaled_signal)
 segments_list, num_segments_in_signal= split_signal_to_heartbeat_segments(scaled_signal_no_lsb)
-window_indices_for_all_segments= get_window_indices_for_all_segments(segments_list, 2)
-segment_hashes                 = compute_segment_hashes(scaled_signal_no_lsb, window_indices_for_all_segments)
-quantized_segment_hashes       = quantize_hash_values_for_all_segments(segment_hashes, param.BIT_LENGTH)
-seeded_hash_segments           = prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
-watermarks_for_all_segments    = convert_hash_to_int_and_generate_watermark(segments_list, seeded_hash_segments)
-watermarked_signal             = embed_watermark_into_ecg(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
-watermarked_ecg_signal_unscaled= unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
-unshifted_ecg_signal           = unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
+window_indices_for_all_segments = get_window_indices_for_all_segments(segments_list, 2)
+segment_hashes                  = compute_segment_hashes(scaled_signal_no_lsb, window_indices_for_all_segments)
+quantized_segment_hashes        = quantize_hash_values_for_all_segments(segment_hashes, param.BIT_LENGTH)
+seeded_hash_segments            = prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
+watermarks_for_all_segments     = convert_hash_to_int_and_generate_watermark(segments_list, seeded_hash_segments)
+# watermarked_signal              = embed_watermark_into_ecg(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
+watermarked_segments            = embed_watermark_into_ecg_segmented(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
+watermarked_signal              = concat_watermarked_segments(watermarked_segments)
+watermarked_ecg_signal_unscaled = unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
+unshifted_watermarked_ecg_signal= unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
-fragile_mae = robust.get_mae(robust.ecg_signal, unshifted_ecg_signal)
-print(f"Fragile MAE: {fragile_mae}")
-plot_fragile_results(1)
+fragile_mae = robust.get_mae(robust.ecg_signal, unshifted_watermarked_ecg_signal)
+# print(f"Fragile MAE: {fragile_mae}")
+
+should_we_plot = 0
+plot_fragile_results(should_we_plot)
