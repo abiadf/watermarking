@@ -91,6 +91,7 @@ def _apply_butterworth_filter_to_1_window(signal: np.ndarray, fs: float, cutoff:
     nyquist_freq      = 0.5 * fs  # Nyquist frequency
     normalized_cutoff = np.array(cutoff) / nyquist_freq  # Normalize cutoff frequency
     b_num, a_denom    = butter(order, normalized_cutoff, btype=filter_type, analog=False)
+    print(len(b_num), len(a_denom), type(signal), signal)
     return filtfilt(b_num, a_denom, signal)
 
 def _compute_signal_power_of_1_window(signal: np.ndarray) -> float:
@@ -266,7 +267,7 @@ def plot_fragile_results(should_we_plot):
     if should_we_plot: 
         plt.figure(figsize=(13,6))
         plt.plot(robust.ecg_signal, label="Original ECG")
-        plt.plot(unshifted_ecg_signal, label="ECG+fragile WM")
+        plt.plot(unshifted_watermarked_ecg_signal, label="ECG+fragile WM")
         plt.title("ECG Signal")
         plt.xlabel("Time")
         plt.ylabel("Signal")
@@ -278,7 +279,7 @@ shifted_ecg_signal, min_value   = shift_signal_up_to_remove_negative_values(robu
 scaled_signal                   = scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
 scaled_signal_no_lsb            = remove_lsb_from_each_element_in_signal(scaled_signal)
 segments_list, num_segments_in_signal= split_signal_to_heartbeat_segments(scaled_signal_no_lsb)
-window_indices_for_all_segments = get_window_indices_for_all_segments(segments_list, 2)
+window_indices_for_all_segments = get_window_indices_for_all_segments(segments_list, param.SEED_K)
 segment_hashes                  = compute_segment_hashes(scaled_signal_no_lsb, window_indices_for_all_segments)
 quantized_segment_hashes        = quantize_hash_values_for_all_segments(segment_hashes, param.BIT_LENGTH)
 seeded_hash_segments            = prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
@@ -294,3 +295,10 @@ fragile_mae = robust.get_mae(robust.ecg_signal, unshifted_watermarked_ecg_signal
 
 should_we_plot = 0
 plot_fragile_results(should_we_plot)
+
+# NOTE: quantized_Segment_hashes bit length may be inconsistent,
+# ensure bit-length normalization before binary conversion
+# NOTE: window selection is random, need to store their indices to use in detection
+# NOTE: if largest seed dominates, scaling will flatten differences
+# consider normalizing ur using a different scaling factor
+
