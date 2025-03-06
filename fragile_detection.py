@@ -1,68 +1,74 @@
-"""Module about detecting the fragile watermark"""
+"""Module about detecting the fragile watermark
+For this module's input signal, we use the shifter/scaled signal (NOT the original)"""
 
 import numpy as np
 import hashlib
-
-# import ECG_robust as robust
-import ECG_fragile as fragile
+from typing import Dict
 import parameters as param
+import ECG_fragile as fragile
 
-def _store_each_lsb_of_series(input_signal: np.ndarray) -> np.ndarray:
-    """Given an input function, this function takes the Least Significant
-    Bit (LSB) of each element and stores it
+def store_each_lsb_of_series(input_signal: np.ndarray) -> np.ndarray:
+    """Takes the Least Significant Bit (LSB) of each element of an input
+    signal and stores it
     - input_signal (list): input signal to be processed
     - output (list): list of LSBs of each element in input signal"""
 
     return input_signal.astype(int) & 1 # Get LSBs
 
-def generate_seed(binary_str: str) -> int:
-    """Hashes a binary string to produce a valid seed for np.random.seed()."""
+def segment_extracted_watermark(extracted_lsb: np.ndarray, segments_list: list) -> list:
+    """Extracts LSB of each segment in the watermarked signal
+    - extracted_lsb (np.ndarray): LSB of watermarked signal
+    - segments_list (list): list of indices of the segments in the original ECG signal that are watermarked
+    - output (list): list of LSBs of each segment of the watermarked signal"""
+    return [extracted_lsb[segment] for segment in segments_list]
+
+def generate_sha256_seed(binary_str: str) -> int:
+    """Generates a valid random seed from a binary string using SHA-256.
+    binary_str (str): Binary string to hash
+    int: Seed value within Python's seed limit"""
+
     hash_digest = hashlib.sha256(binary_str.encode()).hexdigest()
     return int(hash_digest, 16) % (param.PYTHON_SEED_LIMIT)  # Fit within seed range
 
-def detect_tampering(received_ecg: np.ndarray, seed_k: int, segment_indices_list: list):
+def _bit_accuracy_rate(signal1: np.ndarray, signal2: np.ndarray) -> float:
+    """Returns bit accuracy rate between two signals
+    - signal1/2 (np.ndarray): signal
+    - output (float): bit accuracy rate (0 to 1)"""
+    if len(signal1) != len(signal2):
+        raise ValueError("Signals must have equal length")
+    return np.mean(signal1 == signal2)
+
+def get_bit_accuracy(recomputed_watermarks_for_all_segments: list, extracted_watermark_segments: list) -> Dict[int, float]:
     """Detects if the watermarked signal has been tampered with
-    - original_ecg (np.ndarray): original ECG signal
-    - received_ecg (np.ndarray): received ECG signal
-    - fs (float): sampling frequency of ECG signal
-    - seed_k (int): kappa value for the watermark
-    - segment_indices_list (list): list of indices of the segments in the original ECG signal that are watermarked
-    - output (dict): Tampered segments and their degree of alteration"""
+    - recomputed_watermarks_for_all_segments (list): list of recomputed watermarks for each segment
+    - extracted_watermark_segments (list): list of extracted watermarks for each segment
+    - output (dict): dict of segment index to tampering ratio for tampered segments"""
+    
+    all_bit_accuracy  = {}
+    for i, (recomputed_wm, extracted_wm) in enumerate(zip(recomputed_watermarks_for_all_segments, extracted_watermark_segments)):
+        if not np.array_equal(recomputed_wm, extracted_wm):
+            bit_accuracy = _bit_accuracy_rate(recomputed_watermarks_for_all_segments[i],
+                                              extracted_watermark_segments[i])
+            all_bit_accuracy[i] = bit_accuracy
 
-    original_window_indices = fragile.window_indices_for_all_segments
-    extracted_lsb     = _store_each_lsb_of_series(received_ecg)
-    tampered_segments = {}
+    return all_bit_accuracy
 
-    for i, segment_indices in enumerate(segment_indices_list):
-        received_segment = received_ecg[segment_indices]
+# recomputes watermark
+segment_hashes = fragile.compute_segment_hashes(fragile.watermarked_signal,# fragile.unshifted_watermarked_ecg_signal,
+                                                fragile.window_indices_for_all_segments,
+                                                fragile.num_segments_in_signal)
+quantized_segment_hashes = fragile.quantize_hash_values_for_all_segments(segment_hashes,
+                                                                         param.BIT_LENGTH)
+seeded_hash_segments = fragile.prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
+recomputed_watermarks_for_all_segments = fragile.convert_hash_to_int_and_generate_watermark(fragile.segments_list,
+                                                                                            seeded_hash_segments)
 
-        # Step 2: Recompute hash values using same window indices
-        print('ooooooooooooooooo')
-        recomputed_hash_matrix = fragile.compute_segment_hashes(received_segment, original_window_indices[i])
+# deals with existing watermarks
+extracted_lsb = store_each_lsb_of_series(fragile.watermarked_signal)
+extracted_watermark_segments = segment_extracted_watermark(extracted_lsb, fragile.segments_list)
 
-        # Step 3: Quantize hash values (same bit length as embedding)
-        quantized_hash = fragile._quantize_hash_values_for_1_segment(recomputed_hash_matrix, param.BIT_LENGTH)
+all_bit_accuracy = get_bit_accuracy(recomputed_watermarks_for_all_segments, extracted_watermark_segments)
+# print(all_bit_accuracy)
 
-        # Step 4: Prepend kappa (seed)
-        kappa_binary = format(seed_k, f'0{param.BIT_LENGTH}b')
-        seeded_binary = kappa_binary + quantized_hash
-
-        # Step 5: Generate fragile watermark
-        seed_int = int(seeded_binary, 2)  
-        scaled_seed = fragile._scale_all_seeds(np.array([seed_int]))[0]  
-        np.random.seed(int(scaled_seed))
-        recomputed_watermark = np.random.randint(0, 2, size=len(received_segment))
-
-        # Step 6: Compare extracted vs. recomputed watermark
-        extracted_watermark = extracted_lsb[segment_indices]
-        if not np.array_equal(recomputed_watermark, extracted_watermark):
-            tampering_amount = np.sum(recomputed_watermark != extracted_watermark) / len(received_segment)
-            tampered_segments[i] = tampering_amount
-
-    return tampered_segments
-
-tampered_segments = detect_tampering(fragile.unshifted_watermarked_ecg_signal,
-                                     param.SEED_K, fragile.segments_list)
-
-# NOTE: segment_indices_list in the function is fragile.segments_list
-# NOTE: make sure we are not skipping the seed scaling step
+print("Extracted Watermark First Segment:", extracted_watermark_segments[0])
+print("Original Watermark First Segment:", recomputed_watermarks_for_all_segments[0])

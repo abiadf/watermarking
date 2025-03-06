@@ -11,35 +11,35 @@ import matplotlib.pyplot as plt
 import ECG_robust as robust
 import parameters as param
 
-def shift_signal_up_to_remove_negative_values(ecg_signal):
+def shift_signal_up_to_remove_negative_values(ecg_signal: np.ndarray) -> np.ndarray:
     """Shift signal up to remove negative values, as algo can't handle them"""
     min_value = np.min(ecg_signal)
     if min_value <0:
         shifted_ecg_signal = ecg_signal - min_value
     return shifted_ecg_signal, min_value
 
-def scale_signal_and_remove_decimals(ecg_signal, scale_factor):
+def scale_signal_and_remove_decimals(ecg_signal: np.ndarray, scale_factor: int) -> np.ndarray:
     """The ECG contains decimals, which are not well handled by the LSB algo, so we scale the signal to 
     minimize the damage, then remove decilams, and make it of type int. Ex: ECG signal y-value of 3.51 needs to be int first, so becomes 3, then applying
     LSB gives 3-1=2. We lost too much info, so let's scale 3.5 by 100 (for ex)= 351, then do LSB -> 350, we
     lost less info"""
     return np.floor(ecg_signal * scale_factor).astype(int)
 
-def remove_lsb_from_each_element_in_signal(scaled_signal):
+def remove_lsb_from_each_element_in_signal(scaled_signal: np.ndarray) -> np.ndarray:
     """The least significant bit (LSB) is the last bit in a number's binary form, ex: 19 (dec) = 10011 (bin)
     The LSB here is 1. This function intakes an array, clears the LSB to 0, equivalent to subtracting 1 when
     the number is odd, or leaving it unchanged it even"""
     scaled_signal_no_lsb = scaled_signal & ~1
     return scaled_signal_no_lsb
 
-def _get_signal_peaks(ecg_signal_no_lsb, distance_between_points, peak_as_fraction_of_max):
+def _get_signal_peaks(ecg_signal_no_lsb: np.ndarray, distance_between_points: int, peak_as_fraction_of_max: float) -> tuple:
     """Given a signal, get the peak indices and heights"""
     min_peak_height               = np.max(ecg_signal_no_lsb) * peak_as_fraction_of_max
     peak_indices, peak_properties = scipy.signal.find_peaks(ecg_signal_no_lsb, height = min_peak_height, distance= distance_between_points)
-    peak_heights                  = peak_properties['peak_heights']  # Extract peak heights
+    peak_heights: np.ndarray      = peak_properties['peak_heights']  # Extract peak heights
     return peak_indices, peak_heights
 
-def split_signal_to_heartbeat_segments(ecg_signal_no_lsb) -> list:
+def split_signal_to_heartbeat_segments(ecg_signal_no_lsb: np.ndarray) -> tuple:
     """Divide ECG signal to roughly equal segments so each contains a heartbeat (no strict requirement)
     np.array_split makes the split as equal as possible. No overlap between segments"""
 
@@ -51,7 +51,7 @@ def split_signal_to_heartbeat_segments(ecg_signal_no_lsb) -> list:
 
     return segments_indices_list, num_segments_in_signal
 
-def _get_window_indices_for_1_segment(segment_array, num_of_intervals, window_length) -> list:
+def _get_window_indices_for_1_segment(segment_array: np.ndarray, num_of_intervals: int, window_length: int) -> list:
     """Given a segment, generate random intervals of size 'window_length'
     within segment. Can overlap, but not exceed segment boundaries
     - num_of_intervals: # intervals we will have in segment (= p from paper)
@@ -91,11 +91,11 @@ def _apply_butterworth_filter_to_1_window(signal: np.ndarray, fs: float, cutoff:
     nyquist_freq      = 0.5 * fs  # Nyquist frequency
     normalized_cutoff = np.array(cutoff) / nyquist_freq  # Normalize cutoff frequency
     b_num, a_denom    = butter(order, normalized_cutoff, btype=filter_type, analog=False)
-    print(len(b_num), len(a_denom), type(signal), signal)
+    # print(len(b_num), len(a_denom), type(signal), signal)
     return filtfilt(b_num, a_denom, signal)
 
-def _compute_signal_power_of_1_window(signal: np.ndarray) -> float:
-    """Computes a signal's power
+def _compute_signal_power_of_1_array(signal: np.ndarray) -> float:
+    """Computes an array's power
     - signal (np.ndarray): input signal
     - output (float): input signal's computed power"""
     return np.mean(signal ** 2)
@@ -117,17 +117,19 @@ def _compute_power_hash_values_of_1_window(ecg_window: np.ndarray, fs: float) ->
     high_pass_signal = _apply_butterworth_filter_to_1_window(ecg_window, fs, cutoff=high_cutoff, order=param.BUTTER_ORDER, filter_type='high')
 
     # Compute power values
-    power_low  = _compute_signal_power_of_1_window(low_pass_signal)
-    power_band = _compute_signal_power_of_1_window(band_pass_signal)
-    power_high = _compute_signal_power_of_1_window(high_pass_signal)
+    power_low  = _compute_signal_power_of_1_array(low_pass_signal)
+    power_band = _compute_signal_power_of_1_array(band_pass_signal)
+    power_high = _compute_signal_power_of_1_array(high_pass_signal)
 
     hash_values_of_window = [power_low, power_band, power_high] # 3 hash values
     return hash_values_of_window
 
-def compute_segment_hashes(ecg_signal_no_lsb, window_indices_for_all_segments: list) -> np.ndarray:
+def compute_segment_hashes(ecg_signal_no_lsb: np.ndarray, window_indices_for_all_segments: list, num_segments_in_signal: int) -> np.ndarray:
     """Apply hash computation to each window in an ECG signal segmented into 
-    multiple segments and windows, then store results in 3D array. It then reshapes
+    multiple segments and windows, then store results in 3D array. Then reshapes
     the hash array to concatenate hash values for each segment.
+    Inputting into the function a signal of S segments and each of W windows, returns 3 items 
+    per window, or 3*W items for EACH SEGMENT
     - window_indices_for_all_segments (list): nested list where each segment 
       contains multiple windows, and each window is represented by its indices
     - np.ndarray: 3D array of shape (num_segments, num_windows_per_segment, 3) 
@@ -137,9 +139,9 @@ def compute_segment_hashes(ecg_signal_no_lsb, window_indices_for_all_segments: l
                                param.NUM_WINDOWS_PER_SEGMENT,
                                param.NUM_HASH_VALUES_PER_WINDOW), np.nan)
 
-    for i, segment in enumerate(window_indices_for_all_segments):
-        for j, window in enumerate(segment):
-            hash_values = _compute_power_hash_values_of_1_window(ecg_signal_no_lsb[window], param.fs)
+    for i, segment_indices in enumerate(window_indices_for_all_segments):
+        for j, window_indices in enumerate(segment_indices):
+            hash_values = _compute_power_hash_values_of_1_window(ecg_signal_no_lsb[window_indices], param.fs)
             ecg_hash_matrix[i, j, :] = hash_values
 
     segment_hashes = ecg_hash_matrix.reshape(num_segments_in_signal, -1)
@@ -190,9 +192,9 @@ def _scale_all_seeds(all_seeds_int: np.ndarray) -> np.ndarray:
 
     if max_seed > param.PYTHON_SEED_LIMIT:
         scale_factor  = max_seed / param.PYTHON_SEED_LIMIT  # Compute relative scaling factor
-        all_seeds_int = all_seeds_int / scale_factor  # Scale seed down proportionally
+        all_seeds_int = np.floor(all_seeds_int / scale_factor)  # Scale seed down proportionally
         print(f"Max seed exceeds Python limits, will downscale all seeds")
-    all_seeds_int = np.floor(all_seeds_int)#.astype(int)
+    # all_seeds_int = np.floor(all_seeds_int)#.astype(int)
     return all_seeds_int
 
 def convert_hash_to_int_and_generate_watermark(ecg_segments: list, seeded_hash_segments: list) -> list:
@@ -226,21 +228,26 @@ def embed_watermark_into_ecg(ecg_signal: list, ecg_segments: list, watermarks_fo
             watermarked_ecg[idx] = (watermarked_ecg[idx] & ~1) | watermark[j]  # Set LSB with the watermark bit
     return watermarked_ecg
 
-def embed_watermark_into_ecg_segmented(ecg_signal: np.ndarray, ecg_segments: list, watermarks_for_all_segments: list) -> list:
+def apply_lsb_watermark_to_ecg_segments(ecg_signal: np.ndarray, ecg_segments: list, watermarks_for_all_segments: list) -> list:
     """Embeds watermarks into ECG segments and returns a segmented output.
     We keep the output segmented (instead of concatenated) as it will be used in the detection
     - ecg_segments (list): list of ECG segments (each a list/array of indices)
     - watermarks_for_all_segments (list): list of watermarks for each segment
     - returns: list of watermarked ECG segments"""
 
-    watermarked_segments = []
+    watermarked_ecg_segments = []
     for segment_indices, watermark_segment in zip(ecg_segments, watermarks_for_all_segments):
+        if len(segment_indices) != len(watermark_segment):
+            raise ValueError(f"Segment and watermark length mismatch: {len(segment_indices)} vs {len(watermark_segment)}")
         watermarked_segment = ecg_signal[segment_indices].copy()  # Get actual signal values
-        for j in range(len(segment_indices)):
-            watermarked_segment[j] = (watermarked_segment[j] & ~1) | watermark_segment[j] # Set LSB with the watermark bit
-        watermarked_segments.append(watermarked_segment)
 
-    return watermarked_segments
+        # for j in range(len(segment_indices)):
+        #     watermarked_segment[j] = (watermarked_segment[j] & ~1) | watermark_segment[j] # Set LSB with the watermark bit
+        watermarked_segment &= ~1  # Clear LSBs
+        watermarked_segment |= watermark_segment  # Set new LSBs
+        watermarked_ecg_segments.append(watermarked_segment)
+
+    return watermarked_ecg_segments
 
 def concat_watermarked_segments(watermarked_segments: list) -> np.ndarray:
     """Concatenates the watermarked segments into a single array
@@ -248,12 +255,12 @@ def concat_watermarked_segments(watermarked_segments: list) -> np.ndarray:
     - np.ndarray: concatenated array of watermarked ECG segments"""
     return np.concatenate(watermarked_segments)
 
-def unscale_signal(scaled_signal_no_lsb, scale_factor):
+def unscale_signal(scaled_signal_no_lsb: np.ndarray, scale_factor: int) -> np.ndarray:
     """Function that unscaled the modified signal"""
     ecg_signal_no_lsb = scaled_signal_no_lsb / scale_factor
     return ecg_signal_no_lsb
 
-def unshift_signal_back_to_original(ecg_signal, min_value):
+def unshift_signal_back_to_original(ecg_signal: np.ndarray, min_value) -> np.ndarray:
     """Shift signal down to bring signal back to original
     - ecg_signal (np.ndarray): array of watermarked ECG segments
     - min_value (int): minimum value of the signal"""
@@ -280,13 +287,13 @@ scaled_signal                   = scale_signal_and_remove_decimals(shifted_ecg_s
 scaled_signal_no_lsb            = remove_lsb_from_each_element_in_signal(scaled_signal)
 segments_list, num_segments_in_signal= split_signal_to_heartbeat_segments(scaled_signal_no_lsb)
 window_indices_for_all_segments = get_window_indices_for_all_segments(segments_list, param.SEED_K)
-segment_hashes                  = compute_segment_hashes(scaled_signal_no_lsb, window_indices_for_all_segments)
+segment_hashes                  = compute_segment_hashes(scaled_signal_no_lsb, window_indices_for_all_segments, num_segments_in_signal)
 quantized_segment_hashes        = quantize_hash_values_for_all_segments(segment_hashes, param.BIT_LENGTH)
 seeded_hash_segments            = prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
 watermarks_for_all_segments     = convert_hash_to_int_and_generate_watermark(segments_list, seeded_hash_segments)
 # watermarked_signal              = embed_watermark_into_ecg(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
-watermarked_segments            = embed_watermark_into_ecg_segmented(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
-watermarked_signal              = concat_watermarked_segments(watermarked_segments)
+watermarked_ecg_segments        = apply_lsb_watermark_to_ecg_segments(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
+watermarked_signal              = concat_watermarked_segments(watermarked_ecg_segments)
 watermarked_ecg_signal_unscaled = unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
 unshifted_watermarked_ecg_signal= unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
@@ -300,5 +307,5 @@ plot_fragile_results(should_we_plot)
 # ensure bit-length normalization before binary conversion
 # NOTE: window selection is random, need to store their indices to use in detection
 # NOTE: if largest seed dominates, scaling will flatten differences
-# consider normalizing ur using a different scaling factor
+# consider normalizing it using a different scaling factor
 
