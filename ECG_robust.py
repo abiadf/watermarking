@@ -56,7 +56,8 @@ def apply_hamming_to_all_ssn_chunks(binary_ssn_split: list) -> str:
 binary_ssn       = convert_ssn_to_binary(param.user_ssn)
 binary_ssn_split = split_and_pad_binary_ssn(binary_ssn, binary_ssn_chunk_len = 4)
 ssn_with_hamming = apply_hamming_to_all_ssn_chunks(binary_ssn_split)
- 
+print(ssn_with_hamming)
+
 # =======================
 subsequence_length = param.subsequence_len_factor* len(ssn_with_hamming) # m = 3*l (from paper)
 n_timesteps        = math.floor(subsequence_length * param.num_subsequences) # from paper

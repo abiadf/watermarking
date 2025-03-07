@@ -295,8 +295,6 @@ class FragileWatermark():
                 raise ValueError(f"Segment and watermark length mismatch: {len(segment_indices)} vs {len(watermark_segment)}")
             watermarked_segment = ecg_signal[segment_indices].copy()  # Get actual signal values
 
-            # for j in range(len(segment_indices)):
-            #     watermarked_segment[j] = (watermarked_segment[j] & ~1) | watermark_segment[j] # Set LSB with the watermark bit
             watermarked_segment &= ~1  # Clear LSBs
             watermarked_segment |= watermark_segment  # Set new LSBs
             watermarked_ecg_segments.append(watermarked_segment)
@@ -323,9 +321,9 @@ watermarks_for_all_segments     = FragileWatermark.convert_hash_to_int_and_gener
 watermarked_ecg_segments        = FragileWatermark.apply_lsb_watermark_to_ecg_segments(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
 watermarked_signal              = FragileWatermark.concat_watermarked_segments(watermarked_ecg_segments)
 watermarked_ecg_signal_unscaled = SignalProcessing.unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
-unshifted_watermarked_ecg_signal= SignalProcessing.unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
+watermarked_ecg_signal_unshifted= SignalProcessing.unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
-fragile_mae = robust.get_mae(robust.ecg_signal, unshifted_watermarked_ecg_signal)
+fragile_mae = robust.get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
 # print(f"Fragile MAE: {fragile_mae}")
 
 
@@ -334,7 +332,7 @@ def plot_fragile_results(should_we_plot):
     if should_we_plot: 
         plt.figure(figsize=(13,6))
         plt.plot(robust.ecg_signal, label="Original ECG")
-        plt.plot(unshifted_watermarked_ecg_signal, label="ECG+fragile WM")
+        plt.plot(watermarked_ecg_signal_unshifted, label="ECG+fragile WM")
         plt.title("ECG Signal")
         plt.xlabel("Time")
         plt.ylabel("Signal")

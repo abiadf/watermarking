@@ -6,6 +6,7 @@ import hashlib
 from typing import Dict
 import parameters as param
 import ECG_fragile as fragile
+import ECG_robust as robust
 from ECG_fragile import SignalProcessing, WatermarkGenerator, FragileWatermark
 
 
@@ -24,6 +25,7 @@ def segment_extracted_watermark(extracted_lsb: np.ndarray, segments_list: list) 
     - output (list): list of LSBs of each segment of the watermarked signal"""
     return [extracted_lsb[segment] for segment in segments_list]
 
+# not used
 def generate_sha256_seed(binary_str: str) -> int:
     """Generates a valid random seed from a binary string using SHA-256.
     binary_str (str): Binary string to hash
@@ -55,7 +57,7 @@ def get_bit_accuracy(recomputed_watermarks_for_all_segments: list, extracted_wat
     return all_bit_accuracy
 
 # recomputes watermark
-segment_hashes = FragileWatermark.compute_segment_power_hashes(fragile.watermarked_signal,# fragile.unshifted_watermarked_ecg_signal,
+segment_hashes = FragileWatermark.compute_segment_power_hashes(fragile.watermarked_signal,# fragile.watermarked_ecg_signal_unshifted,
                                                          fragile.window_indices_for_all_segments,
                                                          fragile.num_segments_in_signal)
 quantized_segment_hashes = FragileWatermark.quantize_hash_values_for_all_segments(segment_hashes,
@@ -73,3 +75,8 @@ extracted_watermark_segments = segment_extracted_watermark(extracted_lsb, fragil
 all_bit_accuracy = get_bit_accuracy(recomputed_watermarks_for_all_segments, extracted_watermark_segments)
 print(f"{all_bit_accuracy=}")
 
+print(np.mean(robust.ecg_signal)) # original signal
+print(np.mean(fragile.watermarked_ecg_signal_unshifted))
+
+MAE_fragile_original_signal = robust.get_mae(robust.ecg_signal, fragile.watermarked_ecg_signal_unshifted)
+print(f"MAE between original-fragile watermark: {MAE_fragile_original_signal=}%")
