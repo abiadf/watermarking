@@ -6,6 +6,8 @@ import hashlib
 from typing import Dict
 import parameters as param
 import ECG_fragile as fragile
+from ECG_fragile import SignalProcessing, WatermarkGenerator, FragileWatermark
+
 
 def store_each_lsb_of_series(input_signal: np.ndarray) -> np.ndarray:
     """Takes the Least Significant Bit (LSB) of each element of an input
@@ -46,7 +48,6 @@ def get_bit_accuracy(recomputed_watermarks_for_all_segments: list, extracted_wat
     
     all_bit_accuracy  = {}
     for i, (recomputed_wm, extracted_wm) in enumerate(zip(recomputed_watermarks_for_all_segments, extracted_watermark_segments)):
-        if not np.array_equal(recomputed_wm, extracted_wm):
             bit_accuracy = _bit_accuracy_rate(recomputed_watermarks_for_all_segments[i],
                                               extracted_watermark_segments[i])
             all_bit_accuracy[i] = bit_accuracy
@@ -54,21 +55,21 @@ def get_bit_accuracy(recomputed_watermarks_for_all_segments: list, extracted_wat
     return all_bit_accuracy
 
 # recomputes watermark
-segment_hashes = fragile.compute_segment_hashes(fragile.watermarked_signal,# fragile.unshifted_watermarked_ecg_signal,
-                                                fragile.window_indices_for_all_segments,
-                                                fragile.num_segments_in_signal)
-quantized_segment_hashes = fragile.quantize_hash_values_for_all_segments(segment_hashes,
-                                                                         param.BIT_LENGTH)
-seeded_hash_segments = fragile.prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
-recomputed_watermarks_for_all_segments = fragile.convert_hash_to_int_and_generate_watermark(fragile.segments_list,
-                                                                                            seeded_hash_segments)
+segment_hashes = FragileWatermark.compute_segment_power_hashes(fragile.watermarked_signal,# fragile.unshifted_watermarked_ecg_signal,
+                                                         fragile.window_indices_for_all_segments,
+                                                         fragile.num_segments_in_signal)
+quantized_segment_hashes = FragileWatermark.quantize_hash_values_for_all_segments(segment_hashes,
+                                                                                  param.BIT_LENGTH)
+seeded_hash_segments = FragileWatermark.prepend_seed_to_every_hash(quantized_segment_hashes,
+                                                                   param.SEED_K,
+                                                                   param.BIT_LENGTH)
+recomputed_watermarks_for_all_segments = FragileWatermark.convert_hash_to_int_and_generate_watermark(fragile.segments_list,
+                                                                                                     seeded_hash_segments)
 
 # deals with existing watermarks
 extracted_lsb = store_each_lsb_of_series(fragile.watermarked_signal)
 extracted_watermark_segments = segment_extracted_watermark(extracted_lsb, fragile.segments_list)
 
 all_bit_accuracy = get_bit_accuracy(recomputed_watermarks_for_all_segments, extracted_watermark_segments)
-# print(all_bit_accuracy)
+print(f"{all_bit_accuracy=}")
 
-print("Extracted Watermark First Segment:", extracted_watermark_segments[0])
-print("Original Watermark First Segment:", recomputed_watermarks_for_all_segments[0])
