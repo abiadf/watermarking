@@ -1,4 +1,4 @@
-"""Central location for all parameters used in the project"""
+"""Central location for all parameters used in the ECG part"""
 
 # Personal info
 birth_date = '10-20-2020'
