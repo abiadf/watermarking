@@ -2,6 +2,8 @@
 This repo focuses on a novel way to embed watermarks into timeseries.
 
 ## Part 1 - Implementing ECG paper
+[Paper link](https://www.ee.bilkent.edu.tr/~kozat/papers/5_1.pdf)
+
 The first part is to mimic the implementation of Kozat et al. (2009), who embedded patients' data into their ECG signals using 2 watermarks, a robust one to resist attacks, and a fragile one to detect tampering. Upon reproducing Kozat et al.'s work, we get an understanding of their method, what went well, and what could be improved.
 
 Robust watermark:
@@ -24,3 +26,8 @@ Fragile watermark:
 
 Diagram `ECG_diagram` in this repo outlines the steps to implement Kozat et al.'s algorithm.
 
+
+## Part 2 - Implementing DWT paper
+[Paper link](https://repository.tudelft.nl/file/File_21f57473-c108-46fa-94f0-c196773465b5?preview=1)
+
+The algorithm is outlined in a diagram found in this repo

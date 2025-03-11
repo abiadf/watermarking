@@ -4,8 +4,8 @@ For this module's input signal, we use the shifter/scaled signal (NOT the origin
 import numpy as np
 import hashlib
 from typing import Dict
-import parameters as param
 import ECG_fragile as fragile
+import ECG_parameters as param
 import ECG_robust as robust
 from ECG_fragile import SignalProcessing, WatermarkGenerator, FragileWatermark
 

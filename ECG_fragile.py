@@ -9,7 +9,8 @@ from scipy.signal import butter, filtfilt
 import matplotlib.pyplot as plt
 
 import ECG_robust as robust
-import parameters as param
+import ECG_parameters as param
+from ECG_robust import SignalAnalysis
 
 class SignalProcessing():
     """Handles pre- and post-processing of signal"""
@@ -53,7 +54,6 @@ class SignalProcessing():
         if min_value <0:
             unshifted_ecg_signal = ecg_signal + min_value
         return unshifted_ecg_signal
-
 
 class WatermarkGenerator():
     """Handles watermark generation process"""
@@ -156,7 +156,6 @@ class WatermarkGenerator():
 
         hash_values_of_window = [power_low, power_band, power_high] # 3 hash values
         return hash_values_of_window
-
 
 class FragileWatermark():
     """Main class for fragile watermarking"""
@@ -308,7 +307,8 @@ class FragileWatermark():
         return np.concatenate(watermarked_segments)
 
 
-shifted_ecg_signal, min_value   = SignalProcessing.shift_signal_up_to_remove_negative_values(robust.ecg_signal)
+# shifted_ecg_signal, min_value   = SignalProcessing.shift_signal_up_to_remove_negative_values(robust.ecg_signal)
+shifted_ecg_signal, min_value   = SignalProcessing.shift_signal_up_to_remove_negative_values(robust.watermarked_ecg_signal)
 scaled_signal                   = SignalProcessing.scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
 scaled_signal_no_lsb            = SignalProcessing.remove_lsb_from_each_element_in_signal(scaled_signal)
 segments_list, num_segments_in_signal= WatermarkGenerator.split_signal_to_heartbeat_segments(scaled_signal_no_lsb)
@@ -323,8 +323,8 @@ watermarked_signal              = FragileWatermark.concat_watermarked_segments(w
 watermarked_ecg_signal_unscaled = SignalProcessing.unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
 watermarked_ecg_signal_unshifted= SignalProcessing.unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
-fragile_mae = robust.get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
-# print(f"Fragile MAE: {fragile_mae}")
+fragile_mae = SignalAnalysis.get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
+print(f"Fragile MAE: {fragile_mae}%")
 
 
 def plot_fragile_results(should_we_plot):
@@ -338,7 +338,6 @@ def plot_fragile_results(should_we_plot):
         plt.ylabel("Signal")
         plt.legend()
         plt.show()
-
 
 should_we_plot = 0
 plot_fragile_results(should_we_plot)
