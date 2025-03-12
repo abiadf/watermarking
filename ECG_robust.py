@@ -111,8 +111,8 @@ class SignalAnalysis:
     """Handles signal analysis and plotting"""
     @staticmethod
     def get_mae(sequence1, sequence2) -> float:
-        """Calculates the Mean Absolute Error (%) between 2 sequences"""
-        return np.mean(np.abs(sequence1 - sequence2)/sequence1) * 100
+        """Calculates the Mean Absolute Error (not %) between 2 sequences"""
+        return np.mean(np.abs(sequence1 - sequence2)/sequence1)
 
     @staticmethod
     def calculate_beta(rho_values, num_subsequences):
@@ -121,8 +121,12 @@ class SignalAnalysis:
         return beta
 
     @staticmethod
-    def plot_robust_results(should_we_plot):
+    def plot_robust_results(should_we_plot, ecg_signal, watermarked_ecg_signal):
         """Plots the results of the robust watermarking"""
+        freqs = np.fft.fftfreq(len(ecg_signal), 1/param.fs)
+        subseq_fft, magnitudes, phase_angles = WatermarkEmbedding._get_fourier_terms(ecg_signal)
+        phases = phase_angles
+
         if should_we_plot:
             plt.figure(figsize=(13,6))
             plt.subplot(1,2,1)
@@ -167,7 +171,7 @@ watermarked_ecg_signal = WatermarkEmbedding.get_watermarked_subsequences(ecg_sub
 
 mae  = SignalAnalysis.get_mae(ecg_signal, watermarked_ecg_signal)
 mape = np.mean(np.abs((ecg_signal - watermarked_ecg_signal)/ecg_signal)) * 100
-# print(f"Robust: MAE {mae}%, MAPE {mape}%")
+print(f"Robust: MAE {mae}%, MAPE {mape}%")
 
 should_we_plot = 0
-SignalAnalysis.plot_robust_results(should_we_plot)
+SignalAnalysis.plot_robust_results(should_we_plot, ecg_signal, watermarked_ecg_signal)
