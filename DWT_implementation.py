@@ -1,6 +1,7 @@
 """This module implements the Discrete Wavelet Transform (DWT) embedding from the
 paper by Raave (2024)"""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pywt
 import DWT_parameters as DWT
@@ -22,35 +23,18 @@ from ECG_robust import ecg_signal, SignalAnalysis
 # ['fbsp']
 # ['cmor']
 
-# Watermark stream and Fibonacci sequence
-watermark_stream = np.array([1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0])  # user-given key
-fibonacci_seq = np.array([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987])
 
-# Dataset and parameters
-dataset = ecg_signal
-wavelet_type = 'db4'  # Daubechies 4 wavelet choice
-LEVEL_1 = 1
-window_len = 5  # Barker code length from paper
-
-# Split dataset into sections
-split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
-dataset_split_sections = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
-
-# Check for validity of dataset split
-if any(len(inner_sublist) <= window_len for section in dataset_split_sections for inner_sublist in section):
-    raise ValueError(f"Error: A sublist has length <= {window_len}")
-
+def normalize_dataset(input_data):
+    """Normalize the input data to make its mean 0 and stdev 1"""
+    return (input_data - np.mean(input_data)) / np.std(input_data)
 
 def add_barker_code_values_to_array(array: np.array) -> np.array:
     """Add the 5th Barker code values (in imaginary space!) to the first
     few array values"""
-    array = array.astype(np.complex128)
-    array[:len(DWT.BARKER_CODE_5TH)] += 1j * DWT.BARKER_CODE_5TH
+    multiplier = 0.5
+    array      = array.astype(np.complex128)
+    array[:len(DWT.BARKER_CODE_5TH)] += multiplier* 1j * DWT.BARKER_CODE_5TH
     return array
-
-def append_barker_code_to_array_beginning(array: np.array) -> np.array:
-    """Prepend the 5th Barker code to the array"""
-    return np.concatenate((DWT.BARKER_CODE_5TH, array), axis=0)
 
 def get_wavelet_approx_coeffs(array: np.array, wavelet: str, level: int) -> np.array:
     """Get the wavelet Approximation coefficients. 0 is index of approx coeff"""
@@ -103,7 +87,6 @@ def watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, LE
     for j, sublist in enumerate(section):
         if j % 2 == 0:  # n1
             n1_with_barker = add_barker_code_values_to_array(sublist)
-            # n1_with_barker = append_barker_code_to_array_beginning(sublist)
             processed_subsections.append(n1_with_barker)
         else:  # n2
             c_approx, c_detail = get_wavelet_approx_coeffs(sublist, wavelet_type, LEVEL_1)
@@ -129,7 +112,7 @@ def watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL
     """Full watermarking logic"""
     # Split the dataset into sections
     split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
-    dataset_split_sections = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
+    dataset_split_sections      = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
 
     # Process each section
     watermarked_sections = []
@@ -138,23 +121,59 @@ def watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL
         
         # Concat n1 + n2 frames
         if len(processed_subsections) == 2:  # ensures n1 and n2 are present
-            combined = concat_n1_and_n2(processed_subsections[0], processed_subsections[1])
+            combined_n1_n2 = concat_n1_and_n2(processed_subsections[0], processed_subsections[1])
         else:
-            combined = np.concatenate(processed_subsections)
-        watermarked_sections.append(combined)
+            combined_n1_n2 = np.concatenate(processed_subsections)
+        watermarked_sections.append(combined_n1_n2)
 
     # Combine all sections to form the final watermarked data
     return np.concatenate(watermarked_sections)
 
-# Apply watermark to the dataset
+def plot_DWT_results(should_we_plot, signal, watermarked_signal):
+    """Plots the results of the DWT watermarking"""
+
+    if should_we_plot:
+        plt.figure(figsize=(11,8))
+        plt.plot(signal, label="Original")
+        plt.plot(watermarked_signal, label="DWT Watermark")
+        plt.title("Normalized Signal vs time")
+        plt.xlabel("Time")
+        plt.ylabel("Signal")
+        plt.legend()
+        plt.show()
+
+# =======================
+# Watermark stream and Fibonacci sequence
+watermark_stream = np.array([1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0])  # user-given key
+fibonacci_seq    = np.array([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987])
+
+wavelet_type     = 'db4'  # Daubechies 4 wavelet choice
+LEVEL_1          = 1
+window_len       = 5  # Barker code length from paper
+
+# Split dataset into sections
+dataset                     = normalize_dataset(ecg_signal)
+split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
+dataset_split_sections      = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
+
+# Check validity of dataset split
+if any(len(inner_sublist) <= window_len for section in dataset_split_sections for inner_sublist in section):
+    raise ValueError(f"Error: A sublist has length <= {window_len}")
+
+# Apply watermark to dataset
 DWT_watermarked_data = watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1, window_len)
 
 # Output results
-print(f"Watermarked dataset {len(DWT_watermarked_data)}, input dataset {len(dataset)}")
+print(f"DWT Watermarked dataset {len(DWT_watermarked_data)}, input dataset {len(dataset)}")
 
 if len(DWT_watermarked_data) < len(dataset):
     print(SignalAnalysis.get_mae(dataset[len(DWT_watermarked_data)], DWT_watermarked_data))
 else:
     print(SignalAnalysis.get_mae(dataset, DWT_watermarked_data[:len(dataset)]))
 
-print(DWT_watermarked_data[0:150])
+print(DWT_watermarked_data[0:60])
+
+
+
+should_we_plot = 0
+plot_DWT_results(should_we_plot, dataset, DWT_watermarked_data)

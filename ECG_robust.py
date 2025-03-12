@@ -112,7 +112,7 @@ class SignalAnalysis:
     @staticmethod
     def get_mae(sequence1, sequence2) -> float:
         """Calculates the Mean Absolute Error (not %) between 2 sequences"""
-        return np.mean(np.abs(sequence1 - sequence2)/sequence1)
+        return np.mean(np.abs(sequence1 - sequence2))
 
     @staticmethod
     def calculate_beta(rho_values, num_subsequences):
@@ -171,7 +171,7 @@ watermarked_ecg_signal = WatermarkEmbedding.get_watermarked_subsequences(ecg_sub
 
 mae  = SignalAnalysis.get_mae(ecg_signal, watermarked_ecg_signal)
 mape = np.mean(np.abs((ecg_signal - watermarked_ecg_signal)/ecg_signal)) * 100
-print(f"Robust: MAE {mae}%, MAPE {mape}%")
+# print(f"Robust: MAE {mae}%, MAPE {mape}%")
 
 should_we_plot = 0
 SignalAnalysis.plot_robust_results(should_we_plot, ecg_signal, watermarked_ecg_signal)

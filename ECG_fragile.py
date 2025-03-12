@@ -324,7 +324,7 @@ watermarked_ecg_signal_unscaled = SignalProcessing.unscale_signal(watermarked_si
 watermarked_ecg_signal_unshifted= SignalProcessing.unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
 fragile_mae = SignalAnalysis.get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
-print(f"Fragile MAE: {fragile_mae}%")
+print(f"Fragile MAE: {fragile_mae}")
 
 
 def plot_fragile_results(should_we_plot):

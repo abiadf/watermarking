@@ -10,5 +10,13 @@ from DWT_implementation import DWT_watermarked_data
 
 
 
+# step 1: find the barker codes (imaginary #, so easy to spot)
+# beginning of barker code = beginning of section (so now we can split the sections)
+# split to sections, then split sections to n1 and n2 (unsure if we have the length of n1 and n2 beforehand, or just assume)
+# apply DWT to each n2 and divide the approx coeffs to f frames
 
-
+# So for each coefficient c in a frame, the nth number is found in ref that is closest to the magnitude
+# of c. Each n connected to each c is stored. If the values of n are more often odd than even per frame, the
+# watermark bit is a 1 and if it is the other way around, it is a 0. Therefore the algorithm always uses odd-sized
+# frames to prevent ambiguity. Once all frames have been considered, the watermark has been extracted from the
+# sequence.
