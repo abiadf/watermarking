@@ -42,8 +42,10 @@ if any(len(inner_sublist) <= window_len for section in dataset_split_sections fo
 
 
 def add_barker_code_values_to_array(array: np.array) -> np.array:
-    """Add the 5th Barker code values to the first few values in the array"""
-    array[:len(DWT.BARKER_CODE_5TH)] += DWT.BARKER_CODE_5TH
+    """Add the 5th Barker code values (in imaginary space!) to the first
+    few array values"""
+    array = array.astype(np.complex128)
+    array[:len(DWT.BARKER_CODE_5TH)] += 1j * DWT.BARKER_CODE_5TH
     return array
 
 def append_barker_code_to_array_beginning(array: np.array) -> np.array:
@@ -155,3 +157,4 @@ if len(DWT_watermarked_data) < len(dataset):
 else:
     print(SignalAnalysis.get_mae(dataset, DWT_watermarked_data[:len(dataset)]))
 
+print(DWT_watermarked_data[0:150])
