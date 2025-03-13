@@ -33,9 +33,9 @@ def normalize_dataset(input_data):
 def add_barker_code_values_to_array(array: np.array) -> np.array:
     """Add the 5th Barker code values (in imaginary space!) to the first
     few array values"""
-    multiplier = 0.5
+    MULTIPLIER = 0.5 # user-defined
     array      = array.astype(np.complex128)
-    array[:len(DWT.BARKER_CODE_5TH)] += multiplier* 1j * DWT.BARKER_CODE_5TH
+    array[:len(DWT.BARKER_CODE_5TH)] += MULTIPLIER * 1j * DWT.BARKER_CODE_5TH
     return array
 
 def get_wavelet_approx_coeffs(array: np.array, wavelet: str, level: int) -> np.array:
@@ -82,7 +82,7 @@ def concat_n1_and_n2(n1: np.array, n2: np.array) -> np.array:
     return np.concatenate((n1, n2))
 
 
-def watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1):
+def _watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1):
     """Process each section with watermarking"""
     processed_subsections = []
 
@@ -116,10 +116,14 @@ def watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL
     split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
     dataset_split_sections      = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
 
+    # Check validity of dataset split
+    if any(len(inner_sublist) <= window_len for section in dataset_split_sections for inner_sublist in section):
+        raise ValueError(f"Error: A sublist has length <= {window_len}")
+
     # Process each section
     watermarked_sections = []
     for section in dataset_split_sections:
-        processed_subsections = watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1)
+        processed_subsections = _watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1)
         
         # Concat n1 + n2 frames
         if len(processed_subsections) == 2:  # ensures n1 and n2 are present
@@ -149,31 +153,15 @@ def plot_DWT_results(should_we_plot, signal, watermarked_signal):
 watermark_stream = np.array([1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0])  # user-given key
 fibonacci_seq    = np.array([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987])
 
-wavelet_type     = 'db4'  # Daubechies 4 wavelet choice
-LEVEL_1          = 1
-window_len       = 5  # Barker code length from paper
-
-# Split dataset into sections
-dataset                     = normalize_dataset(ecg_signal)
-split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
-dataset_split_sections      = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
-
-# Check validity of dataset split
-if any(len(inner_sublist) <= window_len for section in dataset_split_sections for inner_sublist in section):
-    raise ValueError(f"Error: A sublist has length <= {window_len}")
-
-# Apply watermark to dataset
-DWT_watermarked_data = watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1, window_len)
+# Watermark dataset
+dataset             = normalize_dataset(ecg_signal)
+dwt_watermarked_data= watermark_data(dataset, watermark_stream, fibonacci_seq, DWT.wavelet_type, DWT.LEVEL_1, DWT.window_len)
 
 # Output results
-print(f"DWT Watermarked dataset {len(DWT_watermarked_data)}, input dataset {len(dataset)}")
+print(f"Input dataset {len(dataset)}, DWT Watermarked dataset {len(dwt_watermarked_data)}")
+dwt_watermarked_data = dwt_watermarked_data[:len(dataset)]
 
-if len(DWT_watermarked_data) < len(dataset):
-    print(get_mae(dataset[len(DWT_watermarked_data)], DWT_watermarked_data))
-else:
-    print(get_mae(dataset, DWT_watermarked_data[:len(dataset)]))
-
-
+print("DWT MAE:", get_mae(dataset, dwt_watermarked_data))
 
 should_we_plot = 0
-plot_DWT_results(should_we_plot, dataset, DWT_watermarked_data)
+plot_DWT_results(should_we_plot, dataset, dwt_watermarked_data)
