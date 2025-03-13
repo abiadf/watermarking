@@ -8,6 +8,7 @@ import ECG_fragile as fragile
 import ECG_parameters as param
 import ECG_robust as robust
 from ECG_fragile import SignalProcessing, WatermarkGenerator, FragileWatermark
+from utils import get_mae
 
 
 def store_each_lsb_of_series(input_signal: np.ndarray) -> np.ndarray:
@@ -78,5 +79,5 @@ print(f"{all_bit_accuracy=}")
 print(np.mean(robust.ecg_signal)) # original signal
 print(np.mean(fragile.watermarked_ecg_signal_unshifted))
 
-MAE_fragile_original_signal = robust.get_mae(robust.ecg_signal, fragile.watermarked_ecg_signal_unshifted)
+MAE_fragile_original_signal = get_mae(robust.ecg_signal, fragile.watermarked_ecg_signal_unshifted)
 print(f"MAE between original-fragile watermark: {MAE_fragile_original_signal=}%")

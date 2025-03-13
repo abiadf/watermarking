@@ -8,7 +8,20 @@ import DWT_parameters as DWT
 from ECG_robust import ecg_signal, SignalAnalysis
 from DWT_implementation import DWT_watermarked_data
 
+imaginary_indices = np.where(np.iscomplex(DWT_watermarked_data))
+gap_starts = np.where(np.diff(imaginary_indices) > 1)[0] + 1
+# print(gap_starts)
+start_indices = np.insert(imaginary_indices[gap_starts], 0, imaginary_indices[0])
+print(start_indices)
+# ok = np.where(np.diff(imaginary_indices) == 2)[1]
+# print(ok)
 
+# gap_starts = np.where(np.diff(imaginary_indices) != 1)[1]# + 1
+# print(gap_starts)
+# start_indices = np.insert(imaginary_indices[gap_starts], 0, imaginary_indices[0])
+
+# start_indices = imaginary_indices[np.insert(np.diff(imaginary_indices) > 1, 0, True)]
+# print(start_indices)
 
 # step 1: find the barker codes (imaginary #, so easy to spot)
 # beginning of barker code = beginning of section (so now we can split the sections)

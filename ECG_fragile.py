@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import ECG_robust as robust
 import ECG_parameters as param
 from ECG_robust import SignalAnalysis
+from utils import get_mae
 
 class SignalProcessing():
     """Handles pre- and post-processing of signal"""
@@ -323,7 +324,7 @@ watermarked_signal              = FragileWatermark.concat_watermarked_segments(w
 watermarked_ecg_signal_unscaled = SignalProcessing.unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
 watermarked_ecg_signal_unshifted= SignalProcessing.unshift_signal_back_to_original(watermarked_ecg_signal_unscaled, min_value)
 
-fragile_mae = SignalAnalysis.get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
+fragile_mae = get_mae(robust.ecg_signal, watermarked_ecg_signal_unshifted)
 print(f"Fragile MAE: {fragile_mae}")
 
 

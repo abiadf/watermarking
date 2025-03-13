@@ -7,6 +7,8 @@ import pywt
 import DWT_parameters as DWT
 from ECG_robust import ecg_signal, SignalAnalysis
 
+from utils import get_mae
+
 # options:
 # ['haar']
 # ['db1', 'db2', 'db3', 'db4', 'db5', 'db6', 'db7', 'db8', 'db9', 'db10', 'db11', 'db12', 'db13', 'db14', 'db15', 'db16', 'db17', 'db18', 'db19', 'db20', 'db21', 'db22', 'db23', 'db24', 'db25', 'db26', 'db27', 'db28', 'db29', 'db30', 'db31', 'db32', 'db33', 'db34', 'db35', 'db36', 'db37', 'db38']
@@ -167,11 +169,9 @@ DWT_watermarked_data = watermark_data(dataset, watermark_stream, fibonacci_seq, 
 print(f"DWT Watermarked dataset {len(DWT_watermarked_data)}, input dataset {len(dataset)}")
 
 if len(DWT_watermarked_data) < len(dataset):
-    print(SignalAnalysis.get_mae(dataset[len(DWT_watermarked_data)], DWT_watermarked_data))
+    print(get_mae(dataset[len(DWT_watermarked_data)], DWT_watermarked_data))
 else:
-    print(SignalAnalysis.get_mae(dataset, DWT_watermarked_data[:len(dataset)]))
-
-print(DWT_watermarked_data[0:60])
+    print(get_mae(dataset, DWT_watermarked_data[:len(dataset)]))
 
 
 

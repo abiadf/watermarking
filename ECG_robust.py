@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
  
 import ECG_parameters as param
-
+from utils import get_mae
 
 class Preprocessing:
     @staticmethod
@@ -109,10 +109,6 @@ class WatermarkEmbedding:
 
 class SignalAnalysis:
     """Handles signal analysis and plotting"""
-    @staticmethod
-    def get_mae(sequence1, sequence2) -> float:
-        """Calculates the Mean Absolute Error (not %) between 2 sequences"""
-        return np.mean(np.abs(sequence1 - sequence2))
 
     @staticmethod
     def calculate_beta(rho_values, num_subsequences):
@@ -169,7 +165,7 @@ watermark              = WatermarkEmbedding._turn_watermark_to_nonbinary_sequenc
 ecg_subsequences       = WatermarkEmbedding._split_signal_to_subsequences(ecg_signal, subsequence_length)
 watermarked_ecg_signal = WatermarkEmbedding.get_watermarked_subsequences(ecg_subsequences)
 
-mae  = SignalAnalysis.get_mae(ecg_signal, watermarked_ecg_signal)
+mae  = get_mae(ecg_signal, watermarked_ecg_signal)
 mape = np.mean(np.abs((ecg_signal - watermarked_ecg_signal)/ecg_signal)) * 100
 # print(f"Robust: MAE {mae}%, MAPE {mape}%")
 
