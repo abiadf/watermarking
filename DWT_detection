@@ -3,10 +3,10 @@ paper by Raave (2024). The purpose is to retrieve the bit stream from the waterm
 data and see whether this matches the original bit stream of the owner"""
 
 import numpy as np
-import pywt
 import DWT_parameters as DWT
 from ECG_robust import ecg_signal, SignalAnalysis
-from DWT_implementation import dwt_watermarked_data, get_wavelet_approx_coeffs
+from DWT_implementation import dwt_watermarked_data, get_wavelet_approx_coeffs, \
+split_n2_into_frames, get_closest_fibonacci_entry_idx, watermark_stream
 
 def find_barker_code_start(dwt_watermarked_data: np.ndarray) -> np.ndarray:
     """Identifies the starting indices of the Barker code [1 1 1 0 1] embedded in the 
@@ -51,13 +51,14 @@ def _get_n1_n2_start_end_indices(dwt_watermarked_data, n1_start_indices):
     return n1_end_indices, n2_start_indices, n2_end_indices
 
 def split_dataset_into_n1_n2(dataset, n1_start_indices):
-    """Splits the dataset into sections, each containing n1 and n2 subarrays
+    """Splits the dataset into sections, each containing n1 and n2 subarrays. Note that
+    this function cuts the data into sections before splitting each section into n1/n2
     Args:
         dataset (np.ndarray): The full dataset
         n1_start_indices (np.ndarray): Indices where n1 starts for each section
     Returns:
         list: A list of sections, where each section is [n1_array, n2_array]"""
-    # Get section indices
+
     n1_end_indices, n2_start_indices, n2_end_indices = _get_n1_n2_start_end_indices(dataset, n1_start_indices)
 
     dataset_with_split_sections = [
@@ -65,24 +66,39 @@ def split_dataset_into_n1_n2(dataset, n1_start_indices):
         for n1_start, n1_end, n2_start, n2_end in zip(n1_start_indices, n1_end_indices, n2_start_indices, n2_end_indices)]
     return dataset_with_split_sections
 
-barker_code_starts_idx = find_barker_code_start(dwt_watermarked_data)
+def get_bit_accuracy_pct(signal1, signal2):
+    """Calculates bit accuracy of 2 signals"""
 
-n1_start_indices = barker_code_starts_idx
-dataset_with_split_sections = split_dataset_into_n1_n2(dwt_watermarked_data, n1_start_indices)
+    if len(signal1) != len(signal2):
+        print("Arrays of different lengths!")
+        return None
 
+    matching_bits = np.array(signal1) == np.array(signal2)
+    return np.mean(matching_bits) * 100
+
+
+n1_start_indices           = find_barker_code_start(dwt_watermarked_data)
+dataset_with_split_sections= split_dataset_into_n1_n2(dwt_watermarked_data, n1_start_indices)
+
+retrieved_watermark = []
 for i, section in enumerate(dataset_with_split_sections):
     for j, subsection in enumerate(section):
         if j % 2 != 0: #n2
-            c_approx, c_detail = get_wavelet_approx_coeffs(subsection, DWT.wavelet_type, DWT.LEVEL_1)
+            subsection  = np.real(subsection)
+            c_approx, _ = get_wavelet_approx_coeffs(subsection, DWT.wavelet_type, DWT.LEVEL_1)
+            # print("ooooo", c_approx)
+            n2_frames   = split_n2_into_frames(c_approx, DWT.N2_FRAME_SIZE)
+            for frame in n2_frames:
+                frame_fib_indices = np.empty(len(frame), dtype=np.int64)
+                for idx, element in enumerate(frame):
+                    frame_fib_indices[idx] = get_closest_fibonacci_entry_idx(element, DWT.fibonacci_seq)
+                print(frame_fib_indices)
+                if np.sum(frame_fib_indices % 2 == 1) > len(frame_fib_indices)/2: # most indices are odd
+                    retrieved_watermark.append(1)
+                else:
+                    retrieved_watermark.append(0)
 
+print(retrieved_watermark)
 
-# step 1: find the barker codes (imaginary #, so easy to spot)
-# beginning of barker code = beginning of section (so now we can split the sections)
-# split to sections, then split sections to n1 and n2 (unsure if we have the length of n1 and n2 beforehand, or just assume)
-# apply DWT to each n2 and divide the approx coeffs to f frames
-
-# So for each coefficient c in a frame, the nth number is found in ref that is closest to the magnitude
-# of c. Each n connected to each c is stored. If the values of n are more often odd than even per frame, the
-# watermark bit is a 1 and if it is the other way around, it is a 0. Therefore the algorithm always uses odd-sized
-# frames to prevent ambiguity. Once all frames have been considered, the watermark has been extracted from the
-# sequence.
+bit_accuracy_pct = get_bit_accuracy_pct(retrieved_watermark, watermark_stream)
+print(f"Bit accuracy: {bit_accuracy_pct}%")

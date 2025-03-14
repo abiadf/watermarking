@@ -30,12 +30,11 @@ def normalize_dataset(input_data):
     """Normalize the input data to make its mean 0 and stdev 1"""
     return (input_data - np.mean(input_data)) / np.std(input_data)
 
-def add_barker_code_values_to_array(array: np.array) -> np.array:
+def add_barker_code_values_to_array(array: np.array, multiplier) -> np.array:
     """Add the 5th Barker code values (in imaginary space!) to the first
     few array values"""
-    MULTIPLIER = 0.5 # user-defined
-    array      = array.astype(np.complex128)
-    array[:len(DWT.BARKER_CODE_5TH)] += MULTIPLIER * 1j * DWT.BARKER_CODE_5TH
+    array = array.astype(np.complex128)
+    array[:len(DWT.BARKER_CODE_5TH)] += multiplier * 1j * DWT.BARKER_CODE_5TH
     return array
 
 def get_wavelet_approx_coeffs(array: np.array, wavelet: str, level: int) -> np.array:
@@ -43,8 +42,14 @@ def get_wavelet_approx_coeffs(array: np.array, wavelet: str, level: int) -> np.a
     coeffs = pywt.wavedec(array, wavelet, level)
     return coeffs[0], coeffs[1]
 
+# def get_wavelet_approx_coeffs(array: np.array, wavelet: str, level: int) -> np.array:
+#     max_level = pywt.dwt_max_level(len(array), pywt.Wavelet(wavelet).dec_len)
+#     level = min(level, max_level)  # Ensure level is valid
+#     coeffs = pywt.wavedec(array, wavelet, level=level)
+#     return coeffs[0], coeffs[1:]
+
 def get_closest_fibonacci_entry_idx(num: int, fibonacci_seq: np.array):
-    """Get the closest Fibonacci entry to input num"""
+    """Get the closest Fibonacci entry to |input num|"""
     closest_index = np.abs(fibonacci_seq - np.abs(num)).argmin()
     return closest_index
 
@@ -59,7 +64,7 @@ def split_n2_into_frames(array: np.array, frame_len: int) -> list:
 
 def compute_watermark_bit_index(k, idx) -> int:
     """Compute paper formula (p4): l = floor(i/f) + 1"""
-    return (k * DWT.FRAME_SIZE + idx) // DWT.FRAME_SIZE  # Compute bit index
+    return (k * DWT.N2_FRAME_SIZE + idx) // DWT.N2_FRAME_SIZE  # Compute bit index
 
 def change_fibonacci_number(closest_index: int, fib_seq: np.array, watermark_bit: int) -> int:
     """If closest_index mod 2 equals watermark_bit, return fib_seq[closest_index];
@@ -88,11 +93,14 @@ def _watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, L
 
     for j, sublist in enumerate(section):
         if j % 2 == 0:  # n1
-            n1_with_barker = add_barker_code_values_to_array(sublist)
+            n1_with_barker = add_barker_code_values_to_array(sublist, DWT.MULTIPLIER)
             processed_subsections.append(n1_with_barker)
         else:  # n2
             c_approx, c_detail = get_wavelet_approx_coeffs(sublist, wavelet_type, LEVEL_1)
-            n2_frames = split_n2_into_frames(c_approx, DWT.FRAME_SIZE)
+            # print("xxxxxxxx", c_approx)
+
+            n2_frames = split_n2_into_frames(c_approx, DWT.N2_FRAME_SIZE)
+            # print("xxxxxxxx", sublist)
 
             # Embed watermark into coefficients
             for k, frame in enumerate(n2_frames):
@@ -113,7 +121,7 @@ def _watermark_section(section, watermark_stream, fibonacci_seq, wavelet_type, L
 def watermark_data(dataset, watermark_stream, fibonacci_seq, wavelet_type, LEVEL_1, window_len):
     """Full watermarking logic"""
     # Split the dataset into sections
-    split_dataset_into_sections = np.array_split(dataset, len(dataset) // (10 * window_len))
+    split_dataset_into_sections = np.array_split(dataset, len(dataset) // DWT.DATASET_SECTION_LEN)
     dataset_split_sections      = [np.array_split(frame, DWT.NUM_LISTS_PER_SECTION) for frame in split_dataset_into_sections]
 
     # Check validity of dataset split
@@ -149,19 +157,22 @@ def plot_DWT_results(should_we_plot, signal, watermarked_signal):
         plt.show()
 
 # =======================
-# Watermark stream and Fibonacci sequence
+# Watermark stream
 watermark_stream = np.array([1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0])  # user-given key
-fibonacci_seq    = np.array([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987])
 
 # Watermark dataset
-dataset             = normalize_dataset(ecg_signal)
-dwt_watermarked_data= watermark_data(dataset, watermark_stream, fibonacci_seq, DWT.wavelet_type, DWT.LEVEL_1, DWT.window_len)
+dataset             = 10000*ecg_signal #normalize_dataset(ecg_signal)
+dwt_watermarked_data= watermark_data(dataset, watermark_stream, DWT.fibonacci_seq, DWT.wavelet_type, DWT.LEVEL_1, DWT.window_len)
 
 # Output results
 print(f"Input dataset {len(dataset)}, DWT Watermarked dataset {len(dwt_watermarked_data)}")
 dwt_watermarked_data = dwt_watermarked_data[:len(dataset)]
 
-print("DWT MAE:", get_mae(dataset, dwt_watermarked_data))
+# print("DWT MAE:", get_mae(dataset, dwt_watermarked_data))
 
 should_we_plot = 0
 plot_DWT_results(should_we_plot, dataset, dwt_watermarked_data)
+
+
+
+print(len(dwt_watermarked_data), len(dwt_watermarked_data[0]))
