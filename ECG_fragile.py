@@ -230,8 +230,8 @@ class FragileWatermark():
 
         if max_seed > param.PYTHON_SEED_LIMIT:
             # Only rescale if max_seed is too large
-            normalized_seeds = (all_seeds_int - min_seed)/(max_seed - min_seed)# * param.PYTHON_SEED_LIMIT
-            return np.floor(normalized_seeds)        
+            min_max_normalized_seeds = (all_seeds_int - min_seed)/(max_seed - min_seed)# * param.PYTHON_SEED_LIMIT
+            return np.floor(min_max_normalized_seeds)        
         return all_seeds_int # Return unchanged if within limits
 
 
