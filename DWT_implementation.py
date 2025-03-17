@@ -149,9 +149,9 @@ class Watermarking:
             processed_section = Watermarking._watermark_1_section(section, watermark_stream,
                                                                   fibonacci_seq, wavelet_type,
                                                                   LEVEL_1)
-            watermarked_sections.append(processed_section) # Preserves section structure
+            watermarked_sections.append(processed_section)
         
-        return np.concatenate(watermarked_sections) #watermarked_sections
+        return np.concatenate(watermarked_sections)
 
 # ===============================================
 
@@ -170,5 +170,8 @@ else:
     dataset = dataset[:len(dwt_watermarked_data)]
 print("DWT MAE:", get_mae(dataset, dwt_watermarked_data))
 
-should_we_plot = 0
-SignalProcessor.plot_DWT_results(should_we_plot, dataset, dwt_watermarked_data)
+if __name__ == "__main__":
+    should_we_plot = 1
+    SignalProcessor.plot_DWT_results(should_we_plot, dataset, dwt_watermarked_data)
+
+print(len(dataset), 'fffffffffff')

@@ -37,7 +37,7 @@ def _get_n1_n2_start_end_indices(dwt_watermarked_data, n1_start_indices):
         dwt_watermarked_data (np.ndarray): full dataset
         n1_start_indices (np.ndarray): Indices where n1 starts for each section
     Returns:
-        tuple: (n1_end_indices, n2_start_indices, n2_end_indices"""
+        tuple: (n1_end_indices, n2_start_indices, n2_end_indices)"""
 
     section_lengths  = np.diff(n1_start_indices, append=len(dwt_watermarked_data))  
     n1_lengths       = section_lengths // 2  
@@ -102,8 +102,3 @@ print(f"Original watermark: {DWT.watermark_stream}")
 bit_accuracy_pct = get_bit_accuracy_pct(DWT.watermark_stream, retrieved_watermark)
 print(f"Bit accuracy: {bit_accuracy_pct}%")
 
-#TODO: check the size of frames, something is wrong in the splitting,
-# mayeb the dataset is too small relative to sections/frames
-# the watermark stream length should also match the frames, consider
-# making the stream very long and only retrieve as much as the
-# frames allow
