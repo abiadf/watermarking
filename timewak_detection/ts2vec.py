@@ -4,12 +4,11 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from encoder import TSEncoder
 from losses import hierarchical_contrastive_loss
-from .utils import (
+from utils import (
     take_per_row,
     split_with_nan,
     centerize_vary_length_series,
-    torch_pad_nan,
-)
+    torch_pad_nan,)
 
 
 class TS2Vec:

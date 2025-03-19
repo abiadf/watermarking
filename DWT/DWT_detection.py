@@ -1,0 +1,104 @@
+"""This module implements the Discrete Wavelet Transform (DWT) detection from the
+paper by Raave (2024). The purpose is to retrieve the bit stream from the watermarked
+data and see whether this matches the original bit stream of the owner"""
+
+import numpy as np
+import DWT_parameters as DWT
+from DWT_implementation import dwt_watermarked_data, SignalProcessor, DWTImplementation
+
+def find_barker_code_start(dwt_watermarked_data: np.ndarray) -> np.ndarray:
+    """Identifies the starting indices of the Barker code [1 1 1 0 1] embedded in the 
+    imaginary components of the input data
+    1. Find indices of complex values (where Barker code is embedded)
+    2. Compute the difference between consecutive indices
+    3. Locate positions where the difference is `2` (indicating the position of `0` in Barker code)
+    4. Adjust indices to get the starting position of the Barker sequence (the 0 is 3 indices after start)
+    Args:
+        DWT_watermarked_data (np.ndarray): dataset containing embedded Barker code in its imaginary space
+    Returns:
+        np.ndarray: Indices of where the Barker code starts"""
+
+    # Constants based on Barker code pattern [1 1 1 0 1]
+    OFFSET_AFTER_DIFF  = 1 # np.diff offsets by 1, so we shift back
+    GAP_BETWEEN_1S     = 2 # Distance between indices when encountering the '0' in the Barker code
+    BARKER_START_SHIFT = 3 # The 0 is the 4th element in Barker code, so start is 3 places before
+
+    complex_indices        = np.where(np.iscomplex(dwt_watermarked_data))[0] #gets indices of complex values
+    index_diffs            = np.diff(complex_indices) # compute index differences
+    zero_positions         = np.where(index_diffs == GAP_BETWEEN_1S)[0] # Find where 0 is in the sequence
+    idx_of_zeros           = complex_indices[zero_positions] + OFFSET_AFTER_DIFF # gets actual idx of 0s
+    barker_code_starts_idx = idx_of_zeros - BARKER_START_SHIFT # compute start indices
+    return barker_code_starts_idx
+
+def _get_n1_n2_start_end_indices(dwt_watermarked_data, n1_start_indices):
+    """Computes the start and end indices for n1 and n2 regions
+    - Sections are of varying length, but within a section, n1 and n2 are equal
+    Args:
+        dwt_watermarked_data (np.ndarray): full dataset
+        n1_start_indices (np.ndarray): Indices where n1 starts for each section
+    Returns:
+        tuple: (n1_end_indices, n2_start_indices, n2_end_indices)"""
+
+    section_lengths  = np.diff(n1_start_indices, append=len(dwt_watermarked_data))  
+    n1_lengths       = section_lengths // 2  
+
+    n2_start_indices = n1_start_indices + n1_lengths  
+    n1_end_indices   = n2_start_indices - 1  # Last index of n1
+    n2_end_indices   = n2_start_indices + n1_lengths - 1  # Last index of n2
+
+    return n1_end_indices, n2_start_indices, n2_end_indices
+
+def split_dataset_into_n1_n2(dataset, n1_start_indices):
+    """Splits the dataset into sections, each containing n1 and n2 subarrays. Note that
+    this function cuts the data into sections before splitting each section into n1/n2
+    Args:
+        dataset (np.ndarray): The full dataset
+        n1_start_indices (np.ndarray): Indices where n1 starts for each section
+    Returns:
+        list: A list of sections of subsections, each section containing [n1_array, n2_array]"""
+
+    n1_end_indices, n2_start_indices, n2_end_indices = _get_n1_n2_start_end_indices(dataset, n1_start_indices)
+
+    dataset_with_split_sections = [
+        [dataset[n1_start:n1_end + 1], dataset[n2_start:n2_end + 1]] 
+        for n1_start, n1_end, n2_start, n2_end in zip(n1_start_indices, n1_end_indices, n2_start_indices, n2_end_indices)]
+    return dataset_with_split_sections
+
+def get_bit_accuracy_pct(original, retrieved):
+    """Calculates bit accuracy of 2 signals"""
+
+    if len(original) != len(retrieved):
+        print(f"Original array ({len(original)}) of different length than retrieved array ({len(retrieved)})")
+        min_len   = min(len(original), len(retrieved))
+        original  = original[:min_len]
+        retrieved = retrieved[:min_len]
+        
+    matching_bits = np.array(original) == np.array(retrieved)
+    return np.mean(matching_bits) * 100
+
+n1_start_indices           = find_barker_code_start(dwt_watermarked_data)
+dataset_with_split_sections= split_dataset_into_n1_n2(dwt_watermarked_data, n1_start_indices)
+
+retrieved_watermark = []
+for i, section in enumerate(dataset_with_split_sections):
+    for j, subsection in enumerate(section):
+        if j % 2 != 0: # n2
+            subsection  = np.real(subsection)
+            c_approx, _ = SignalProcessor.get_wavelet_approx_coeffs(subsection, DWT.wavelet_type, DWT.LEVEL_1)
+            n2_frames   = DWTImplementation.split_n2_approx_into_frames(c_approx, DWT.N2_FRAME_SIZE)
+
+            for frame in n2_frames:
+                frame_fib_indices = np.empty(len(frame), dtype=np.int64)
+                for idx, element in enumerate(frame):
+                    frame_fib_indices[idx] = DWTImplementation.get_closest_fibonacci_entry_idx(element, DWT.fibonacci_seq)
+                if np.sum(frame_fib_indices % 2 == 1) > len(frame_fib_indices)/2: # most indices are odd
+                    retrieved_watermark.append(1)
+                else:
+                    retrieved_watermark.append(0)
+
+print(f"Retrieved watermark: {retrieved_watermark}")
+print(f"Original watermark: {DWT.watermark_stream}")
+
+bit_accuracy_pct = get_bit_accuracy_pct(DWT.watermark_stream, retrieved_watermark)
+print(f"Bit accuracy: {bit_accuracy_pct}%")
+
