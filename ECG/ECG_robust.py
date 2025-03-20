@@ -69,13 +69,13 @@ class WatermarkEmbedding:
     def _split_signal_to_subsequences(ecg_signal, subsequence_length: int, n_timesteps: int) -> list:
         """Splits ECG signal to subsequences, including the last part even if it's shorter than the subsequence_length"""
         # Create the subsequences of length subsequence_length
-        ecg_subsequences = [ecg_signal[i:i+subsequence_length] for i in range(0, n_timesteps - subsequence_length + 1, subsequence_length)]
+        ecg_subsequences = [ecg_signal[i:i+subsequence_length] for i in range(0, n_timesteps - subsequence_length, subsequence_length)]
 
         # Handle the last subsequence (if it doesn't fit evenly)
-        last_subsequence = ecg_signal[(n_timesteps - subsequence_length):]  # Get the remainder of the signal
-        if len(last_subsequence) != subsequence_length:
-            last_subsequence = np.pad(last_subsequence, (0, subsequence_length - len(last_subsequence)), 'constant', constant_values=0)
-        ecg_subsequences.append(last_subsequence)
+        # last_subsequence = ecg_signal[(n_timesteps - subsequence_length):]  # Get the remainder of the signal
+        # if len(last_subsequence) != subsequence_length:
+        #     last_subsequence = np.pad(last_subsequence, (0, subsequence_length - len(last_subsequence)), 'constant', constant_values=0)
+        # ecg_subsequences.append(last_subsequence)
         
         return ecg_subsequences
 
@@ -87,8 +87,8 @@ class WatermarkEmbedding:
         return subseq_fft, magnitudes, phase_angles
 
     def _apply_watermark_to_subsequences(watermark: np.array, magnitudes: np.array, power) -> list:
-        """Applies watermark to the initial section of the Fourier magnitudes. Note that the
-        first item in watermark is 0, so the watermark is 1 bit longer than the subsequence/3"""
+        """Applies watermark to the initial section of a subsequence's Fourier magnitudes. Note that
+        the first item in watermark is 0, so the watermark is 1 bit longer than the subsequence/3"""
         modified_magnitudes                  = magnitudes.copy()
         modified_magnitudes[:len(watermark)] = np.maximum(0, magnitudes[:len(watermark)] + power*watermark)
         return modified_magnitudes
@@ -100,13 +100,12 @@ class WatermarkEmbedding:
         for ecg_subseq in ecg_subsequences:
             subseq_fft, magnitudes, phase_angles = WatermarkEmbedding._get_fourier_terms(ecg_subseq)
         
-            modified_magnitude = WatermarkEmbedding._apply_watermark_to_subsequences(watermark_sequence, magnitudes, param.power)
-        
+            modified_magnitude  = WatermarkEmbedding._apply_watermark_to_subsequences(watermark_sequence, magnitudes, param.power)
             modified_fft_series = modified_magnitude * np.exp(1j * phase_angles)
             watermarked_subseq  = np.fft.ifft(modified_fft_series).real # keep real part
             watermarked_subsequences.append(watermarked_subseq)
             # print(f"Subseq: {get_mae(ecg_subseq, watermarked_subseq)} %")
-        
+
         watermarked_ecg_signal = np.concatenate(watermarked_subsequences)
         return watermarked_ecg_signal
 

@@ -30,6 +30,10 @@ watermark_sequence     = WatermarkEmbedding._turn_watermark_to_nonbinary_sequenc
 ecg_subsequences       = WatermarkEmbedding._split_signal_to_subsequences(ecg_signal, subsequence_length, n_timesteps)
 watermarked_ecg_signal = WatermarkEmbedding.get_watermarked_subsequences(ecg_subsequences, watermark_sequence)
 
+print(len(x_values), n_timesteps,
+       len(ecg_signal), len(watermarked_ecg_signal))
+
+
 mae  = get_mae(ecg_signal, watermarked_ecg_signal)
 mape = np.mean(np.abs((ecg_signal - watermarked_ecg_signal)/ecg_signal)) * 100
 # print(f"Robust: MAE {mae}%, MAPE {mape}%")
