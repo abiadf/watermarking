@@ -11,7 +11,6 @@ subsequence_len_factor = 3 # from paper, where m = 3*l
 # Robust watermark (from me)
 power                  = 0.01 # power, use 0.01-0.1 range (paper doesnt give value)
 num_subsequences       = 4 # from me
-print("beeeeep")
 
 # Basic timeseries info
 fs = 20 # sampling freq, from me (make sure its >2x the highest dominant signal freq)
@@ -29,7 +28,7 @@ NUM_WINDOWS_PER_SEGMENT    = 2
 NUM_HASH_VALUES_PER_WINDOW = 3 # set to 3 (low, band, high) from paper
 
 # Hashing and watermarking
-BIT_LENGTH        = 20
+BIT_LENGTH        = 16 # set by user, make sure it's large enough
 SEED_K            = 2 # to randomly generate interval start points
 PYTHON_SEED_LIMIT = 2**32 - 1 # highest value np.seed can handle
 BUTTER_ORDER      = 4 # Butterfield filter order, 4 is recommended

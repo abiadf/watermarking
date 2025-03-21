@@ -125,7 +125,6 @@ class WatermarkEmbedding:
             modified_fft_series = modified_magnitude * np.exp(1j * phase_angles)
             watermarked_subseq  = np.fft.ifft(modified_fft_series).real # keep real part
             watermarked_subsequences.append(watermarked_subseq)
-            # print(f"Subseq: {get_mae(ecg_subseq, watermarked_subseq)} %")
 
         watermarked_ecg_signal = np.concatenate(watermarked_subsequences)
         

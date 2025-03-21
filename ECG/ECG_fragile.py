@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 
 import ECG.ECG_robust as robust
 import ECG.ECG_parameters as param
-from ECG.ECG_robust import SignalAnalysis
-from utils import get_mae
 
 class SignalProcessing():
     """Handles pre- and post-processing of signal"""
@@ -26,12 +24,28 @@ class SignalProcessing():
         return shifted_ecg_signal, min_value
 
     @staticmethod
+    def unshift_signal_back_to_original(ecg_signal: np.ndarray, min_value) -> np.ndarray:
+        """Shift signal down to bring signal back to original
+        - ecg_signal (np.ndarray): array of watermarked ECG segments
+        - min_value (int): minimum value of the signal"""
+
+        if min_value <0:
+            unshifted_ecg_signal = ecg_signal + min_value
+        return unshifted_ecg_signal
+
+    @staticmethod
     def scale_signal_and_remove_decimals(ecg_signal: np.ndarray, scale_factor: int) -> np.ndarray:
         """The ECG contains decimals, which are not well handled by the LSB algo, so we scale the signal to 
         minimize the damage, then remove decilams, and make it of type int. Ex: ECG signal y-value of 3.51 needs to be int first, so becomes 3, then applying
         LSB gives 3-1=2. We lost too much info, so let's scale 3.5 by 100 (for ex)= 351, then do LSB -> 350, we
         lost less info"""
         return np.floor(ecg_signal * scale_factor).astype(int)
+
+    @staticmethod
+    def unscale_signal(scaled_signal_no_lsb: np.ndarray, scale_factor: int) -> np.ndarray:
+        """Function that unscaled the modified signal"""
+        ecg_signal_no_lsb = scaled_signal_no_lsb / scale_factor
+        return ecg_signal_no_lsb
 
     @staticmethod
     def remove_lsb_from_each_element_in_signal(scaled_signal: np.ndarray) -> np.ndarray:
@@ -41,22 +55,6 @@ class SignalProcessing():
         scaled_signal_no_lsb = scaled_signal & ~1
         return scaled_signal_no_lsb
 
-    @staticmethod
-    def unscale_signal(scaled_signal_no_lsb: np.ndarray, scale_factor: int) -> np.ndarray:
-        """Function that unscaled the modified signal"""
-        ecg_signal_no_lsb = scaled_signal_no_lsb / scale_factor
-        return ecg_signal_no_lsb
-
-    @staticmethod
-    def unshift_signal_back_to_original(ecg_signal: np.ndarray, min_value) -> np.ndarray:
-        """Shift signal down to bring signal back to original
-        - ecg_signal (np.ndarray): array of watermarked ECG segments
-        - min_value (int): minimum value of the signal"""
-
-        # if min_value <0:
-        #     unshifted_ecg_signal = ecg_signal + min_value
-        # return unshifted_ecg_signal
-        return ecg_signal + min_value
 
 class WatermarkGenerator():
     """Handles watermark generation process"""
@@ -212,36 +210,33 @@ class FragileWatermark():
 
         return quantized_segment_hashes
 
+    def _int_to_bin(x, bit_length):
+        """Convert an integer to a binary string of fixed bit length using two's complement for negatives."""
+        if x < 0:
+            # Handle negative numbers (two's complement)
+            x = (1 << bit_length) + x
+        return format(x, f'0{bit_length}b')
+
     def prepend_seed_to_every_hash(quantized_segment_hashes: list, seed: int, bit_length: int) -> list:
         """Prepends the seed (kappa) to the beginning of each hash string
         - seed (int): kappa value
         - bit_length (int): # of bits for seed, equal to the bit_length of hash values
         - quantized_segment_hash (str): concatenated binary string of hash values
         - str: concatenated binary string of kappa and hash values"""
-        # seed_binary          = format(seed, f'0{bit_length}b')
-        # seeded_hash_segments = [seed_binary + binary_hash for binary_hash in quantized_segment_hashes]
-        # return seeded_hash_segments
 
+        seed_binary = FragileWatermark._int_to_bin(seed, bit_length)
+        seeded_hash_segments = [seed_binary + hash_val for hash_val in quantized_segment_hashes]
+        return seeded_hash_segments
 
-        def int_to_bin(x, bit_length):
-            """Convert integer to binary string with fixed bit length (two's complement for negatives)."""
-            if x < 0:
-                # Handle negative numbers (two's complement)
-                x = (1 << bit_length) + x
-            return format(x, f'0{bit_length}b')
-        
-        # Convert the seed to binary format
-        seed_binary = format(seed, f'0{bit_length}b')
-        
         # Fix the hash values, removing non-binary characters
-        def clean_and_convert_to_bin(hash_val):
+        def _clean_and_convert_to_bin(hash_val):
             """Ensure the hash value is a valid binary string."""
             # Remove any non-binary characters (like '-') from the string
             cleaned_hash = ''.join(c for c in hash_val if c in '01')
-            return int_to_bin(int(cleaned_hash, 2), bit_length)
+            return _int_to_bin(int(cleaned_hash, 2), bit_length)
         
         # Clean and convert each hash value to a binary string
-        quantized_segment_hashes = [clean_and_convert_to_bin(hash_val) for hash_val in quantized_segment_hashes]
+        quantized_segment_hashes = [_clean_and_convert_to_bin(hash_val) for hash_val in quantized_segment_hashes]
         
         # Convert the binary string representations to integers
         quantized_segment_hashes_int = [int(hash_val, 2) for hash_val in quantized_segment_hashes]
@@ -252,10 +247,7 @@ class FragileWatermark():
         # Prepend the seed to each hash
         seeded_hash_segments = [seed_binary + int_to_bin(val, bit_length) for val in scaled_values]
         
-        print(f"Seeded hash example: {seeded_hash_segments[0]}")
         return seeded_hash_segments
-
-
 
     def _normalize_all_seeds(all_seeds_int: np.ndarray) -> np.ndarray:
         """Scales all seeds to be within 32-bit integer range (Python limit)
@@ -270,22 +262,6 @@ class FragileWatermark():
             min_max_normalized_seeds = (all_seeds_int - min_seed)/(max_seed - min_seed)# * param.PYTHON_SEED_LIMIT
             return np.floor(min_max_normalized_seeds)        
         return all_seeds_int # Return unchanged if within limits
-
-
-    # outdated, replaced by _normalize... method
-    def _scale_all_seeds(all_seeds_int: np.ndarray) -> np.ndarray:
-        """Scales all seeds to be within 32-bit integer range    
-        - all_seeds_int (np.ndarray): array of seeds to be scaled
-        - np.ndarray: array of scaled seeds"""	
-
-        max_seed = np.max(all_seeds_int)
-
-        if max_seed > param.PYTHON_SEED_LIMIT:
-            scale_factor  = max_seed / param.PYTHON_SEED_LIMIT  # Compute relative scaling factor
-            all_seeds_int = np.floor(all_seeds_int / scale_factor)  # Scale seed down proportionally
-            print(f"Max seed exceeds Python limits, will downscale all seeds")
-        # all_seeds_int = np.floor(all_seeds_int)#.astype(int)
-        return all_seeds_int
 
     def convert_hash_to_int_and_generate_watermark(ecg_segments: list, seeded_hash_segments: list) -> list:
         """Converts the seeded hash segments to integers
@@ -305,21 +281,6 @@ class FragileWatermark():
             watermarks_for_all_segments.append(watermark_for_segment)
 
         return watermarks_for_all_segments
-
-    # outdated
-    def embed_watermark_into_ecg(ecg_signal: list, ecg_segments: list, watermarks_for_all_segments: list) -> list:
-        """Embeds watermarks into ECG segments
-        - ecg_segments (list): list of ECG segments
-        - watermarks_for_all_segments (list): list of watermarks for each segment
-        - np.ndarray: array of watermarked ECG segments"""
-
-        watermarked_ecg = ecg_signal.copy()  # Make a copy of the original ECG signal
-
-        for i, segment_idx in enumerate(ecg_segments):
-            watermark = watermarks_for_all_segments[i] # Get binary watermark for segment
-            for j, idx in enumerate(segment_idx):
-                watermarked_ecg[idx] = (watermarked_ecg[idx] & ~1) | watermark[j]  # Set LSB with the watermark bit
-        return watermarked_ecg
 
     def apply_lsb_watermark_to_ecg_segments(ecg_signal: np.ndarray, ecg_segments: list, watermarks_for_all_segments: list) -> list:
         """Embeds watermarks into ECG segments and returns a segmented output.
@@ -345,6 +306,7 @@ class FragileWatermark():
         - watermarked_segments (list): list of watermarked ECG segments
         - np.ndarray: concatenated array of watermarked ECG segments"""
         return np.concatenate(watermarked_segments)
+
 
 class SignalAnalysis2():
 

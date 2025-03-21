@@ -41,7 +41,6 @@ SignalAnalysis.plot_robust_results(should_we_plot, ecg_signal, watermarked_ecg_s
 
 # %% Fragile embedding
 
-# shifted_ecg_signal, min_value   = SignalProcessing.shift_signal_up_to_remove_negative_values(robust.ecg_signal)
 shifted_ecg_signal, min_value   = SignalProcessing.shift_signal_up_to_remove_negative_values(robust.watermarked_ecg_signal)
 scaled_signal                   = SignalProcessing.scale_signal_and_remove_decimals(shifted_ecg_signal, param.ECG_SCALE_FACTOR)
 scaled_signal_no_lsb            = SignalProcessing.remove_lsb_from_each_element_in_signal(scaled_signal)
@@ -51,7 +50,6 @@ segment_hashes                  = FragileWatermark.compute_segment_power_hashes(
 quantized_segment_hashes        = FragileWatermark.quantize_hash_values_for_all_segments(segment_hashes, param.BIT_LENGTH)
 seeded_hash_segments            = FragileWatermark.prepend_seed_to_every_hash(quantized_segment_hashes, param.SEED_K, param.BIT_LENGTH)
 watermarks_for_all_segments     = FragileWatermark.convert_hash_to_int_and_generate_watermark(segments_list, seeded_hash_segments)
-# watermarked_signal              = embed_watermark_into_ecg(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
 watermarked_ecg_segments        = FragileWatermark.apply_lsb_watermark_to_ecg_segments(scaled_signal_no_lsb, segments_list, watermarks_for_all_segments)
 watermarked_signal              = FragileWatermark.concat_watermarked_segments(watermarked_ecg_segments)
 watermarked_ecg_signal_unscaled = SignalProcessing.unscale_signal(watermarked_signal, param.ECG_SCALE_FACTOR)
